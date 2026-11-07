@@ -1,0 +1,70 @@
+#include "PluginProcessor.h"
+#include <iostream>
+#include <stdexcept>
+#include <cstdlib>
+void check(bool ok,const char*msg){if(!ok)throw std::runtime_error(msg);}
+void set(ResonantLab&p,const char*id,float v){auto*q=p.state.getParameter(id);q->setValueNotifyingHost(q->convertTo0to1(v));}
+float get(ResonantLab&p,const char*id){return p.state.getRawParameterValue(id)->load();}
+class RackPlayHead final:public juce::AudioPlayHead{
+public: juce::Optional<PositionInfo>position;juce::Optional<PositionInfo>getPosition()const override{return position;}
+ void set(double ppq,bool playing){PositionInfo p;p.setBpm(120);p.setPpqPosition(ppq);p.setIsPlaying(playing);position=p;}
+};
+juce::Component*findControl(juce::Component&root,const juce::String&id){for(int i=0;i<root.getNumChildComponents();++i){auto*c=root.getChildComponent(i);if(c->getComponentID()==id&&dynamic_cast<juce::Slider*>(c))return c;if(auto*match=findControl(*c,id))return match;}return nullptr;}
+int main(){
+ juce::ScopedJuceInitialiser_GUI init;
+ auto p=std::make_unique<ResonantLab>();set(*p,"rack_on",0);p->prepareToPlay(48000,512);
+ set(*p,"edit",0);p->editBodyParameter(1,0.25f);check(std::abs(get(*p,"a_brightness")-0.25f)<0.001f,"A edit");check(get(*p,"b_brightness")>0.5f,"B changed while editing A");
+ set(*p,"edit",1);p->editBodyParameter(1,0.7f);check(std::abs(get(*p,"a_brightness")-0.25f)<0.001f,"A changed while editing B");
+ set(*p,"edit",2);check(get(*p,"a_brightness")!=get(*p,"b_brightness"),"link activation destroyed difference");p->editBodyParameter(1,0.35f);check(std::abs(get(*p,"a_brightness")-get(*p,"b_brightness"))<1e-7f,"linked edit");
+ p->setRouteOrder({2,0,1});check(int(get(*p,"route"))==4,"module reordering");
+ set(*p,"bodies_on",0);set(*p,"filter_on",0);set(*p,"drive_on",0);
+ juce::AudioBuffer<float>audio(2,512);juce::MidiBuffer midi;midi.addEvent(juce::MidiMessage::noteOn(1,60,1.f),96);p->processBlock(audio,midi);
+ double power=0;for(int i=0;i<512;++i){if(i<96)check(audio.getSample(0,i)==0,"MIDI sample offset");else power+=std::abs(audio.getSample(0,i));}check(power>0,"no internal excitation");
+ juce::MemoryOutputStream wav;int frames=4096;wav.write("RIFF",4);wav.writeInt(36+frames*2);wav.write("WAVEfmt ",8);wav.writeInt(16);wav.writeShort(1);wav.writeShort(1);wav.writeInt(48000);wav.writeInt(96000);wav.writeShort(2);wav.writeShort(16);wav.write("data",4);wav.writeInt(frames*2);for(int i=0;i<frames;++i)wav.writeShort(short(9000*std::sin(2*anks::pi*220*i/48000)));
+ auto file=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("anks-v03-test",".wav");check(file.replaceWithData(wav.getData(),wav.getDataSize()),"write fixture");check(p->loadSample(file).isEmpty(),"load excitation");file.deleteFile();
+ set(*p,"input",-3);set(*p,"output",6);juce::MemoryBlock saved;p->getStateInformation(saved);auto q=std::make_unique<ResonantLab>();q->setStateInformation(saved.getData(),int(saved.getSize()));check(std::abs(get(*q,"output")-6)<0.01f,"state parameters");check(q->sampleLabel()==p->sampleLabel(),"sample name restore");check(get(*q,"sample")>0.5f,"sample flag restore");
+ p->prepareToPlay(48000,512);q->prepareToPlay(48000,512);juce::AudioBuffer<float>left(2,512),right(2,512);juce::MidiBuffer m1,m2;m1.addEvent(juce::MidiMessage::noteOn(1,60,1.f),0);m2.addEvent(juce::MidiMessage::noteOn(1,60,1.f),0);p->processBlock(left,m1);q->processBlock(right,m2);double difference=0,total=0;for(int i=0;i<512;++i){difference+=std::abs(left.getSample(0,i)-right.getSample(0,i));total+=std::abs(left.getSample(0,i));}check(total>0.1&&difference<1e-5,"embedded WAV audio restore");
+ // The same 32-sample PositionInfo forwarding used by Curve Pilot V2.
+ RackPlayHead head;q->setPlayHead(&head);set(*q,"seq_on",1);set(*q,"seq_clock",0);set(*q,"seq_length",1);set(*q,"seq_division",3);set(*q,"seq_01_on",1);set(*q,"seq_01_note",60);set(*q,"seq_01_gate",25);set(*q,"release",0.01f);q->prepareToPlay(48000,32);
+ juce::AudioBuffer<float>chunk(2,32);juce::MidiBuffer empty;double firstPower=0,restPower=0;
+ for(int start=0;start<2048;start+=32){head.set(start/24000.0,true);q->processBlock(chunk,empty);for(int k=0;k<32;++k){if(start+k<700)firstPower+=std::abs(chunk.getSample(0,k));if(start+k>1300)restPower+=std::abs(chunk.getSample(0,k));}}
+ check(firstPower>1&&restPower<1e-7,"rack transport/gate");check(q->clockStatus.load()==5,"host clock status");
+ head.set(0,false);for(int n=0;n<24;++n)q->processBlock(chunk,empty);check(q->clockStatus.load()==4,"host stop status");
+ q->setPlayHead(nullptr);q->processBlock(chunk,empty);check(q->clockStatus.load()==3,"missing clock status");set(*q,"seq_clock",1);set(*q,"seq_run",1);q->prepareToPlay(48000,32);double internalPower=0;for(int i=0;i<20;++i){q->processBlock(chunk,empty);for(int k=0;k<32;++k)internalPower+=std::abs(chunk.getSample(0,k));}check(internalPower>1&&q->clockStatus.load()==2,"standalone internal sequence");
+ set(*q,"seq_run",0);set(*q,"seq_01_note",52);set(*q,"seq_01_velocity",89);set(*q,"seq_01_gate",37);set(*q,"seq_bpm",145.5f);set(*q,"seq_length",7);
+ auto preset=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("anks-suite-test",".anksres");check(q->savePreset(preset)&&p->loadPreset(preset),"preset file roundtrip");preset.deleteFile();check(get(*p,"seq_01_note")==52&&get(*p,"seq_01_gate")==37&&get(*p,"seq_length")==7,"pattern restore");check(p->sampleLabel()==q->sampleLabel(),"preset WAV restore");
+ // Simulate a V0.3 state: unchanged old parameter IDs, no sequencer children.
+ juce::MemoryBlock legacy;p->getStateInformation(legacy);auto legacyXml=juce::AudioProcessor::getXmlFromBinary(legacy.getData(),int(legacy.getSize()));auto tree=juce::ValueTree::fromXml(*legacyXml);for(int i=tree.getNumChildren()-1;i>=0;--i)if(tree.getChild(i).getProperty("id").toString().startsWith("seq_")||tree.getChild(i).getProperty("id").toString().startsWith("m1_")||tree.getChild(i).getProperty("id").toString().startsWith("m2_")||tree.getChild(i).getProperty("id").toString().startsWith("m3_")||tree.getChild(i).getProperty("id").toString().startsWith("m4_")||tree.getChild(i).getProperty("id").toString().startsWith("rack_")||tree.getChild(i).getProperty("id")==juce::var("waveform"))tree.removeChild(i,nullptr);tree.removeProperty("instrumentVersion",nullptr);tree.removeProperty("anksSuiteSchema",nullptr);auto xml=tree.createXml();juce::AudioProcessor::copyXmlToBinary(*xml,legacy);q->setStateInformation(legacy.getData(),int(legacy.getSize()));check(get(*q,"seq_on")==0&&get(*q,"seq_run")==0&&get(*q,"seq_length")==16,"V0.3 migration defaults");check(get(*q,"output")==6&&q->sampleLabel()==p->sampleLabel(),"V0.3 old settings preserved");
+
+ check(get(*q,"rack_on")==0,"legacy must keep classic sound");
+ set(*p,"rack_on",1);set(*p,"m1_type",1);set(*p,"m1_b1_detune",123);set(*p,"m2_type",4);set(*p,"m2_pitch",7);p->swapRackSlots(0,1);auto ids=anks::rackOrders()[size_t(int(get(*p,"rack_order")))];check(ids[0]==1&&ids[1]==0&&get(*p,"m1_b1_detune")==123&&get(*p,"m2_pitch")==7,"move lost identity/parameters");
+ auto recipe=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("anks-chain",".ankschain");check(p->saveRecipe(recipe,false),"save chain");
+ {auto x=juce::XmlDocument::parse(recipe);x->setAttribute("schema",1);for(auto*e=x->getFirstChildElement();e;){auto*next=e->getNextElement();if(e->getStringAttribute("id").endsWith("_disto_mode"))x->removeChildElement(e,true);e=next;}check(recipe.replaceWithText(x->toString()),"write legacy chain fixture");}auto oldSource=q->sampleLabel();float root=get(*q,"root"),note=get(*q,"seq_01_note");check(q->loadRecipe(recipe,false),"load chain");check(q->sampleLabel()==oldSource&&get(*q,"root")==root&&get(*q,"seq_01_note")==note,"chain overwrote source or sequence");check(get(*q,"m2_pitch")==7&&get(*q,"m1_b1_detune")==123&&get(*q,"rack_order")==get(*p,"rack_order"),"chain restoration");recipe.deleteFile();
+ recipe=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("anks-module",".anksmod");check(p->saveRecipe(recipe,true,1)&&q->loadRecipe(recipe,true,3),"module preset remap");check(get(*q,"m4_type")==4&&get(*q,"m4_pitch")==7,"module preset did not target selected instance");recipe.replaceWithText("<ANKS_RECIPE schema=\"1\" kind=\"module\"><PARAM id=\"pitch\" value=\"9999\"/></ANKS_RECIPE>");check(!q->loadRecipe(recipe,true,3)&&get(*q,"m4_pitch")==7,"bad recipe partially applied");recipe.deleteFile();
+ juce::MemoryBlock rackState;q->getStateInformation(rackState);p->setStateInformation(rackState.getData(),int(rackState.getSize()));check(get(*p,"m4_type")==4&&get(*p,"m4_pitch")==7&&get(*p,"rack_on")==1,"rack state roundtrip");
+ q->convertLegacy();check(get(*q,"rack_on")==1&&get(*q,"m1_type")==1&&std::abs(get(*q,"m1_b1_brightness")-get(*q,"a_brightness"))<1e-6,"classic conversion");
+ {
+ set(*q,"m1_link",1);std::unique_ptr<juce::AudioProcessorEditor>editor(q->createEditor());auto*control=dynamic_cast<juce::Slider*>(findControl(*editor,"m1_b1_brightness"));check(control!=nullptr,"rack body UI missing");check(editor->getControlParameterIndex(*control)==q->state.getParameter("m1_b1_brightness")->getParameterIndex(),"Ableton Configure knob identity");control->setValue(.432,juce::sendNotificationSync);check(std::abs(get(*q,"m1_b1_brightness")-.432f)<.001f&&std::abs(get(*q,"m1_b2_brightness")-.432f)<.001f,"linked rack UI gesture");set(*q,"m1_link",0);control->setValue(.6,juce::sendNotificationSync);check(std::abs(get(*q,"m1_b2_brightness")-.432f)<.001f,"independent rack UI gesture");
+ }
+
+ // Stable old parameter order: new distortion modes are appended after all V1.1 IDs.
+ for(int i=1;i<=4;++i){auto prefix="m"+juce::String(i)+"_";int index=q->state.getParameter(prefix+"type")->getParameterIndex();for(size_t j=0;j<50;++j)check(q->state.getParameter(prefix+anks::rackFields[j].id)->getParameterIndex()==index+1+int(j),"old parameter index moved");check(q->state.getParameter(prefix+"disto_mode")->getParameterIndex()>q->state.getParameter("m4_depth")->getParameterIndex(),"new mode was inserted into old order");}
+ // Embedded factory samples: no sidecar file is consulted, and the result embeds in state.
+ for(int i=0;i<anks::factory::count();++i){check(q->loadFactory(i).isEmpty(),"embedded factory decode");check(q->sampleLabel()==anks::factory::name(i),"factory label");}check(anks::factory::count()==12,"factory count");check(!q->loadFactory(-1).isEmpty(),"invalid factory index");
+ q->getStateInformation(rackState);p->setStateInformation(rackState.getData(),int(rackState.getSize()));check(p->sampleLabel()==q->sampleLabel(),"factory source state portable");
+ // Actual plugin: short notes from a host-style MIDI clip, source is a real embedded impact.
+ for(int type:{4,5,6}){
+  check(q->loadFactory(4).isEmpty(),"factory impact fixture");set(*q,"root",60);set(*q,"rack_on",1);set(*q,"seq_on",0);set(*q,"output",0);set(*q,"input",0);set(*q,"release",.01f);set(*q,"rack_order",0);for(int i=1;i<=4;++i)set(*q,("m"+juce::String(i)+"_type").toRawUTF8(),i==1?float(type):0.f);set(*q,"m1_on",1);set(*q,"m1_mix",1);set(*q,"m1_time",.25f);set(*q,"m1_feedback",.3f);q->prepareToPlay(48000,128);
+  double late=0,early=0,stereo=0;juce::AudioBuffer<float>block(2,128);juce::MidiBuffer notes;
+  for(int offset=0;offset<24064;offset+=128){notes.clear();if(offset==0)notes.addEvent(juce::MidiMessage::noteOn(1,60,1.f),0);if(offset<=960&&offset+128>960)notes.addEvent(juce::MidiMessage::noteOff(1,60),960-offset);q->processBlock(block,notes);for(int k=0;k<128;++k){int index=offset+k;double l=block.getSample(0,k),r=block.getSample(1,k);if(index<960)early+=l*l+r*r;if(index>=12000&&index<16000)late+=l*l+r*r;stereo+=std::abs(l-r);}}
+  if(type==4)check(early>.0001,"plugin granular silent on a short clip note");if(type==5)check(late>.001&&early<1e-12,"plugin delay lost after note-off or leaks dry");if(type==6)check(stereo>.1,"plugin chorus channels identical");
+ }
+ // Representative compact default editor, no long scrolling rack.
+ q->loadFactory(4);for(int i=1;i<=4;++i)set(*q,("m"+juce::String(i)+"_on").toRawUTF8(),1);set(*q,"m1_type",1);set(*q,"m2_type",4);set(*q,"m3_type",5);set(*q,"m4_type",6);set(*q,"rack_on",1);
+ if(const char*preview=std::getenv("ANKS_UI_PREVIEW")){
+  std::unique_ptr<juce::AudioProcessorEditor>editor(q->createEditor());editor->setSize(std::getenv("ANKS_UI_MINIMUM")?900:1060,std::getenv("ANKS_UI_MINIMUM")?620:700);if(std::getenv("ANKS_UI_SEQUENCE"))for(int i=0;i<editor->getNumChildComponents();++i)if(auto*view=dynamic_cast<juce::Viewport*>(editor->getChildComponent(i)))view->setViewPosition(0,999999);
+  juce::Image image(juce::Image::ARGB,editor->getWidth(),editor->getHeight(),true);juce::Graphics g(image);editor->paintEntireComponent(g,true);
+  juce::File fileOut{juce::String(preview)};fileOut.deleteFile();auto stream=fileOut.createOutputStream();check(stream!=nullptr,"preview output");check(juce::PNGImageFormat{}.writeImageToStream(image,*stream),"preview rendering");
+ }
+ std::cout<<"PASS: actual plugin A/B/linked semantics; route edit; sample-accurate note; WAV load; full parameter+audio state restoration; 32-frame host clock; internal sequence; file presets; V0.3 migration; stable module identities; chain/source separation; module remap; bad recipe rejection; rack state; embedded WAVs; Ableton Configure indices; host MIDI short-note effect acceptance.\n";
+}

@@ -1,0 +1,48 @@
+name: VST3 Windows
+on:
+  workflow_dispatch:
+  push:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - name: Recuperer les sources
+        uses: actions/checkout@v4
+      - name: Compiler avec JUCE 8 et executer les tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $buildScript = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Filter Construire_Windows.ps1 | Select-Object -First 1
+          if (-not $buildScript) { throw 'Construire_Windows.ps1 absent du depot.' }
+          & $buildScript.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Compilation ou tests en echec.' }
+          $projectPath = $buildScript.DirectoryName
+          $pluginPath = Join-Path $projectPath 'build-win/ANKSResonantLab_artefacts/Release/VST3'
+          $stagePath = Join-Path $env:RUNNER_TEMP 'ANKS_Resonant_Lab_1_2_Alpha'
+          New-Item -ItemType Directory -Force $stagePath | Out-Null
+          Copy-Item -Path "$pluginPath/*.vst3" -Destination $stagePath -Recurse
+          $standalonePath = Join-Path $projectPath 'build-win/ANKSResonantLab_artefacts/Release/Standalone'
+          $appPath = Join-Path $stagePath 'Standalone'
+          New-Item -ItemType Directory -Force $appPath | Out-Null
+          Copy-Item -Path "$standalonePath/*.exe" -Destination $appPath
+          Copy-Item -Path (Join-Path $projectPath 'INSTALLATION.txt') -Destination $stagePath
+          Copy-Item -Path (Join-Path $projectPath 'README.md') -Destination $stagePath
+          $deliveryPath = Join-Path $env:GITHUB_WORKSPACE 'Livraison'
+          New-Item -ItemType Directory -Force $deliveryPath | Out-Null
+          Compress-Archive -Path "$stagePath/*" -DestinationPath "$deliveryPath/ANKS_Resonant_Lab_V1_2_Alpha_Windows.zip"
+      - name: Telecharger le VST3
+        uses: actions/upload-artifact@v4
+        with:
+          name: ANKS-Resonant-Lab-V1-2-Alpha-Windows
+          path: Livraison/*.zip
+          if-no-files-found: error
+      - name: Rapports de tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ANKS-Tests
+          path: '**/build-win/Testing/Temporary/*.log'
+          if-no-files-found: ignore

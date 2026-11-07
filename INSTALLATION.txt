@@ -1,0 +1,23 @@
+ANKS RESONANT LAB V1.2 ALPHA 1 — WINDOWS x64
+
+Compiler les sources avec le workflow VST3 Windows (voir GITHUB_DEMARRAGE.txt).
+Dans l'artifact ANKS-Resonant-Lab-V1-2-Alpha-Windows, extraire le ZIP Windows.
+
+1. Fermer Ableton et les autres hotes.
+2. Sauvegarder les projets V0.3/V1 alpha. Cette V1 conserve le meme identifiant Arlc :
+   retirer les anciennes versions du dossier scanne pour eviter un doublon.
+3. Copier le dossier ENTIER ANKS Resonant Lab.vst3 dans :
+   C:\Program Files\Common Files\VST3\
+4. Relancer le scan VST3. Charger ANKS Resonant Lab sur une piste MIDI.
+5. Importer un WAV ou utiliser l'excitation interne, puis jouer des notes.
+
+Le dossier Standalone contient l'application autonome .exe. Dans ses reglages,
+choisir le peripherique audio et MIDI. Pour le sequenceur autonome : activer Sequence,
+horloge Interne, Tempo interne, PLAY.
+Dans Ableton : horloge Hote puis lancer la lecture d'Ableton.
+
+Les 12 excitations sont integrees au VST3 et au Standalone.
+Aucun dossier de WAV a installer : choisir Excitations integrees dans le rack. Les presets .anksres
+contiennent leur WAV. Dans Curve Pilot, re-selectionner le fichier VST3 si
+son ancien chemin ne correspond plus. Tester la restauration avant d'ecraser
+un projet existant. La verification finale Windows/Ableton/Curve reste a faire.

@@ -1,0 +1,28 @@
+ANKS Resonant Lab 1.2 alpha 1 / JUCE 8.0.6 / GCC / Linux
+
+Test project /tmp/anks12_build
+    Start 1: core
+1/6 Test #1: core .............................   Passed    0.74 sec
+    Start 2: sequencer
+2/6 Test #2: sequencer ........................   Passed    0.04 sec
+    Start 3: rack
+3/6 Test #3: rack .............................   Passed    1.35 sec
+    Start 4: effects
+4/6 Test #4: effects ..........................   Passed    0.50 sec
+    Start 5: audio_io
+5/6 Test #5: audio_io .........................   Passed    0.01 sec
+    Start 6: plugin
+6/6 Test #6: plugin ...........................   Passed    0.13 sec
+
+100% tests passed out of 6
+
+Total Test time (real) =   2.77 sec
+
+AddressSanitizer + UndefinedBehaviorSanitizer, detection des fuites desactivee :
+PASS: 75 ms clip gate / full-wet echo after note-off; echo timing and decay; 20 ms gate / granular startup, tail and controls; no hidden dry rescue; stereo multi-voice chorus, depth and speed; stereo through later blocks; callback invariance; three distinct distortion modes.
+
+Cibles finales compilees :
+[100%] Built target ANKSResonantLab_VST3
+[100%] Built target ANKSResonantLab_Standalone
+
+Les essais Windows/Ableton/Curve Pilot et le controle a 300 % restent a effectuer.

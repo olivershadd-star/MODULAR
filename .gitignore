@@ -1,0 +1,5 @@
+.deps/
+build*/
+Livraison/
+*.obj
+*.o
