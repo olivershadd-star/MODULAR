@@ -11,6 +11,9 @@ Buffer render(anks::Parameters p,const anks::Sample&s,int n=48000,int block=128)
 double diff(const Buffer&a,const Buffer&b){double v=0;for(size_t i=0;i<a.size();++i)v+=std::abs(a[i]-b[i]);return v;}
 double power(const Buffer&a,int start=0){double v=0;for(size_t i=size_t(start);i<a.size();++i)v+=a[i]*a[i];return v;}
 int main(){
+ // Compare wrapped interpolation to the original absolute ring definition.
+ anks::History history;history.prepare(17);
+ for(int pass=0;pass<2;++pass){history.reset();for(int n=1;n<180;++n){history.push(double(n));for(double age:{2.,2.25,5.75,14.}){double pos=n-age;double expected=pos<0||pos<double(std::max(0,n-17))?0:pos+1;check(std::abs(history.absolute(pos)-expected)<1e-6,"wrapped history interpolation");}}}
  auto s=source();anks::Parameters p;p.useSample=true;p.rack.enabled=true;
  auto dry=render(p,s,12000);for(size_t i=0;i<dry.size();++i)check(std::abs(dry[i]-s.mono[i])<1e-7,"empty slot not transparent");
  for(int type=1;type<=6;++type){p.rack.modules[0].type=type;auto changed=render(p,s);check(diff(changed,render(anks::Parameters(p),s,48000,32))<1e-6,"rack block invariance");check(diff(changed,render([&]{auto q=p;q.rack.modules[0].on=false;return q;}(),s))>.01,"module has no effect");check(power(changed)>1e-5,"module silent");}

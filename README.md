@@ -1,6 +1,8 @@
-# ANKS Resonant Lab 1.2 alpha 1
+# ANKS Resonant Lab 1.2 alpha 2
 
 Instrument C++ / JUCE 8.0.6 — VST3 et application autonome Windows x64. Auteur : ANKS.
+
+Cette révision conserve uniquement l’interface rack et retire la case de bascule vers l’ancienne disposition. Les anciens états restent lisibles : un bouton de migration vers le rack apparaît uniquement si un ancien moteur est chargé. Les lectures de l’historique granulaire évitent les modulos entiers répétés, et les coefficients EQ sont recalculés seulement lorsque nécessaire.
 
 Cette version corrige les effets de la V1.1 et remplace son rack défilant par une vue compacte à knobs. Les archives précédentes sont conservées séparément.
 

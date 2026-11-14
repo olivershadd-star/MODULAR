@@ -61,7 +61,7 @@ if(ANKS_BUILD_PLUGIN)
   NEEDS_MIDI_INPUT TRUE NEEDS_MIDI_OUTPUT FALSE IS_MIDI_EFFECT FALSE
   PLUGIN_MANUFACTURER_CODE Anks PLUGIN_CODE Arlc FORMATS VST3 Standalone
   PRODUCT_NAME "ANKS Resonant Lab" COPY_PLUGIN_AFTER_BUILD FALSE)
- target_sources(ANKSResonantLab PRIVATE plugin/PluginProcessor.cpp plugin/PluginProcessor.h plugin/PluginEditor.h src/Sequencer.h)
+ target_sources(ANKSResonantLab PRIVATE plugin/PluginProcessor.cpp plugin/PluginProcessor.h src/Sequencer.h)
  target_include_directories(ANKSResonantLab PRIVATE src)
  target_compile_definitions(ANKSResonantLab PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
  target_link_libraries(ANKSResonantLab PRIVATE juce::juce_audio_utils ANKSFactoryAdapter PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)

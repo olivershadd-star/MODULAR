@@ -1,5 +1,6 @@
 #pragma once
-#include "PluginEditor.h"
+#include "PluginProcessor.h"
+#include "SequencePanel.h"
 class KnobLook final:public juce::LookAndFeel_V4 {
 public:
  void drawRotarySlider(juce::Graphics&g,int x,int y,int w,int h,float position,float begin,float end,juce::Slider&s)override{
@@ -98,12 +99,11 @@ private:
 };
 class RackEditor final:public juce::AudioProcessorEditor,public juce::DragAndDropContainer,private juce::Timer{
 public:
- RackEditor(ResonantLab&p):AudioProcessorEditor(p),processor(p),rack(p),classic(p),keys(p.keyboard,juce::MidiKeyboardComponent::horizontalKeyboard){setResizable(true,true);setResizeLimits(900,620,1600,1100);addAndMakeVisible(rack);addAndMakeVisible(legacyView);legacyView.setViewedComponent(&classic,false);addAndMakeVisible(keys);addAndMakeVisible(mode);mode.setButtonText("MOTEUR RACK");mode.setComponentID("rack_on");attachment=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(p.state,"rack_on",mode);addAndMakeVisible(convert);convert.setButtonText("Copier ancien vers rack");convert.setTooltip("Remplace les quatre instances par les reglages du moteur classique.");convert.onClick=[this]{processor.convertLegacy();};keys.setAvailableRange(24,96);setSize(1060,700);timerCallback();startTimerHz(15);}
- ~RackEditor()override{legacyView.setViewedComponent(nullptr,false);}
+ RackEditor(ResonantLab&p):AudioProcessorEditor(p),processor(p),rack(p),keys(p.keyboard,juce::MidiKeyboardComponent::horizontalKeyboard){setResizable(true,true);setResizeLimits(900,620,1600,1100);addAndMakeVisible(rack);addAndMakeVisible(keys);addAndMakeVisible(convert);convert.setButtonText("Migrer ce preset vers le rack");convert.setTooltip("Remplace les quatre instances par les reglages du moteur classique.");convert.onClick=[this]{processor.convertLegacy();};keys.setAvailableRange(24,96);setSize(1060,700);timerCallback();startTimerHz(15);}
  int getControlParameterIndex(juce::Component&c)override{for(auto*node=&c;node&&node!=this;node=node->getParentComponent())if(auto*p=processor.state.getParameter(node->getComponentID()))return p->getParameterIndex();return -1;}
  void paint(juce::Graphics&g)override{g.fillAll(juce::Colour(0xff101723));g.setColour(juce::Colour(0xff7ce2ed));g.setFont(18);g.drawText("ANKS / RESONANT LAB 1.2",14,5,getWidth()-490,30,juce::Justification::centredLeft);g.setColour(juce::Colours::white);g.setFont(12);g.drawText(meter>1e-5?juce::String(20*std::log10(meter),1)+" dBFS":"silence",getWidth()-110,5,96,28,juce::Justification::centredRight);}
- void resized()override{rack.setBounds(0,38,getWidth(),getHeight()-83);legacyView.setBounds(rack.getBounds());classic.setSize(getWidth()-legacyView.getScrollBarThickness(),1240);mode.setBounds(getWidth()-475,6,150,25);convert.setBounds(getWidth()-318,6,200,25);keys.setBounds(12,getHeight()-40,getWidth()-24,35);keys.setKeyWidth(float(getWidth()-24)/43);}
+ void resized()override{rack.setBounds(0,38,getWidth(),getHeight()-83);convert.setBounds(getWidth()-318,6,200,25);keys.setBounds(12,getHeight()-40,getWidth()-24,35);keys.setKeyWidth(float(getWidth()-24)/43);}
 private:
- ResonantLab&processor;RackPage rack;LabPanel classic;juce::Viewport legacyView;juce::MidiKeyboardComponent keys;juce::ToggleButton mode;juce::TextButton convert;std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>attachment;float meter=0;
- void timerCallback()override{bool active=processor.state.getRawParameterValue("rack_on")->load()>.5f;rack.setVisible(active);legacyView.setVisible(!active);meter=std::max(processor.meterPeak.exchange(0),meter*.85f);repaint(0,0,getWidth(),38);}
+ ResonantLab&processor;RackPage rack;juce::MidiKeyboardComponent keys;juce::TextButton convert;float meter=0;
+ void timerCallback()override{bool active=processor.state.getRawParameterValue("rack_on")->load()>.5f;convert.setVisible(!active);meter=std::max(processor.meterPeak.exchange(0),meter*.85f);repaint(0,0,getWidth(),38);}
 };

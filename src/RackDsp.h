@@ -5,15 +5,19 @@ namespace anks {
 class History {
 public:
  void prepare(size_t size){data.assign(size,0);reset();}
- void reset(){total=0;}
- void push(double x){data[size_t(total%data.size())]=float(x);++total;}
+ void reset(){total=0;write=0;}
+ void push(double x){data[write]=float(x);if(++write==data.size())write=0;++total;}
  double absolute(double pos)const{
   if(pos<0||pos>=double(total-std::min<uint64_t>(total,1))||pos<double(total>data.size()?total-data.size():0))return 0;
-  auto i=uint64_t(pos);double f=pos-double(i);return data[size_t(i%data.size())]*(1-f)+data[size_t((i+1)%data.size())]*f;
+  auto i=uint64_t(pos);double f=pos-double(i);
+  // Valid history is at most one ring behind the write position.
+  auto a=int64_t(write)-int64_t(total-i);if(a<0)a+=int64_t(data.size());
+  auto b=size_t(a)+1;if(b==data.size())b=0;
+  return data[size_t(a)]*(1-f)+data[b]*f;
  }
  double behind(double samples)const{return absolute(double(total)-std::clamp(samples,2.0,double(data.size()-2)));}
  uint64_t count()const{return total;}
-private:std::vector<float>data;uint64_t total=0;
+private:std::vector<float>data;uint64_t total=0;size_t write=0;
 };
 struct PeakEq {
  double b0=1,b1=0,b2=0,a1=0,a2=0,z1=0,z2=0;
@@ -32,9 +36,11 @@ public:
  void configure(const RackParameters&p,double hz,double bpm,double ppq,bool first=false,bool updateClock=true){
   if(p.type!=params.type){reset();first=true;}
   bool tune=first;for(size_t i=0;i<2;++i){auto&a=p.body[i];auto&b=params.body[i];tune=tune||a.decay!=b.decay||a.brightness!=b.brightness||a.position!=b.position||a.detune!=b.detune||a.odd!=b.odd;}
-  if(hz!=frequency)tune=true;frequency=hz;params=p;
-  if(tune)for(size_t i=0;i<2;++i){const auto&b=p.body[i];BodyParameters bp;bp.decay=b.decay;bp.brightness=b.brightness;bp.position=b.position;bp.detune=b.detune;bp.odd=b.odd;body[i].tune(hz*std::exp2(b.detune/1200),bp);}
-  for(size_t i=0;i<4;++i)eq[i].configure(rate,p.eqFrequency[i],p.eqGain[i],p.eqQ[i]);
+  if(hz!=frequency)tune=true;
+  const bool updateEq=first||p.type!=params.type||p.filterMode!=params.filterMode||p.eqFrequency!=params.eqFrequency||p.eqGain!=params.eqGain||p.eqQ!=params.eqQ;
+  frequency=hz;params=p;
+  if(tune&&p.type==1)for(size_t i=0;i<2;++i){const auto&b=p.body[i];BodyParameters bp;bp.decay=b.decay;bp.brightness=b.brightness;bp.position=b.position;bp.detune=b.detune;bp.odd=b.odd;body[i].tune(hz*std::exp2(b.detune/1200),bp);}
+  if(updateEq&&p.type==2&&p.filterMode==4)for(size_t i=0;i<4;++i)eq[i].configure(rate,p.eqFrequency[i],p.eqGain[i],p.eqQ[i]);
   driveTarget=dbGain(p.drive);levelTarget=dbGain(p.level);toneCoefficient=1-std::exp(-2*pi*std::clamp(p.tone,30.,rate*.45)/rate);for(size_t i=0;i<2;++i){bodyLevelTarget[i]=dbGain(p.body[i].level);bodyEnabledTarget[i]=p.body[i].on?1:0;if(first){bodyLevel[i]=bodyLevelTarget[i];bodyEnabled[i]=bodyEnabledTarget[i];}}
   speed=p.lfoSync?bpm/(60*p.lfoBeats):p.lfoRate;if(p.lfoSync&&updateClock)phase=ppq/p.lfoBeats-std::floor(ppq/p.lfoBeats);
   target=p.on&&p.type!=0?1:0;if(first){wet=target;mix=p.mix;balance=p.balance;cutoff=p.cutoff;drive=dbGain(p.drive);level=dbGain(p.level);delay=p.time*rate;}
