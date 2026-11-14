@@ -1,8 +1,18 @@
-# ANKS Resonant Lab 1.3 alpha 1
+# ANKS Resonant Lab 1.3 alpha 2
 
 Instrument C++ / JUCE 8.0.6 — VST3 et application autonome Windows x64. Auteur : ANKS.
 
 Cette mouture conserve la banque de 36 excitations et ajoute trois traitements réordonnables : **Semi-modulaire**, **Décalage de fréquence** et **Freeze spectral**. La source reste unique, en amont du rack : WAV/factory ou onde interne (impact, sinus, triangle, dent de scie, carré). Aucun de ces traitements n’ajoute automatiquement un oscillateur.
+
+### Source FM à deux opérateurs
+
+La case **FM**, en haut du rack, sélectionne une source unique avant les quatre traitements. **Réglages FM** ouvre le panneau des deux opérateurs sinusoïdaux : rapport continu 0,125–16, intensité 0–12, feedback 0–95 %, sensibilité de la brillance à la vélocité, ADSR de modulation et enveloppe de volume. Les réglages Attaque/Relâchement globaux servent au volume FM ; Déclin/Maintien du volume sont dans le panneau.
+
+La porteuse suit la note MIDI et le pitch bend ; la racine WAV ne la transpose pas. À intensité zéro, elle produit un sinus. Rapports entiers pour des timbres harmoniques, rapports non entiers et feedback pour cloches, métaux et textures industrielles. La vélocité contrôle le volume et, selon le dosage, l’intensité de modulation. La FM est réalisée par modulation de phase, avec feedback sur le modulateur.
+
+La case WAV et la case FM sélectionnent des sources alternatives. Charger un fichier ou une excitation factory sélectionne le WAV et désactive FM. Si une automation active les deux paramètres à la fois, FM est prioritaire : les sources ne sont jamais additionnées. Décocher FM revient au WAV s’il est actif, sinon à l’onde interne choisie. Une recette de chaîne/module conserve la source FM courante ; une création complète ou le projet hôte sauvegarde aussi ses réglages. Les anciens états restaurent FM désactivée.
+
+Suréchantillonnage fixe 2× puis filtre de décimation FIR de 63 coefficients ; paramètres de timbre lissés. Cela réduit l’aliasing sans garantir son absence aux rapports, notes et feedback extrêmes. La fréquence du modulateur est bornée à 90 % de la fréquence de Nyquist interne. Le filtre ajoute environ 15 échantillons de retard à la source FM (0,31 ms à 48 kHz), sans compensation hôte globale. Aucune allocation pendant le rendu.
 
 ### Semi-modulaire
 
@@ -90,9 +100,9 @@ Hote suit le transport d'Ableton. Interne utilise PLAY et le tempo réglé dans 
 
 ## Compilation et installation
 
-Même procédure : ZIP de sources → extraire → déposer le contenu dans GitHub → **Actions → VST3 Windows**. Télécharger l'artifact **ANKS-Resonant-Lab-V1-3-Alpha-Windows**, puis extraire son ZIP Windows. Il contient le VST3 et Standalone, avec les WAV compilés dedans.
+Même procédure : ZIP de sources → extraire → déposer le contenu dans GitHub → **Actions → VST3 Windows**. Télécharger l'artifact **ANKS-Resonant-Lab-V1-3-Alpha-2-Windows**, puis extraire son ZIP Windows. Il contient le VST3 et Standalone, avec les WAV compilés dedans.
 
-Si le workflow manque, créer `.github/workflows/build-vst3.yml` et copier le fichier visible `build-vst3.yml`. Le script utilise le commit officiel JUCE 8.0.6 fixé, construit les deux formats et lance huit séries de tests, dont le contrôle de la banque si Python est disponible. En local : Visual Studio C++, SDK Windows et CMake, puis Construire_Windows.ps1.
+Si le workflow manque, créer `.github/workflows/build-vst3.yml` et copier le fichier visible `build-vst3.yml`. Le script utilise le commit officiel JUCE 8.0.6 fixé, construit les deux formats et lance neuf séries de tests, dont le contrôle de la banque si Python est disponible. En local : Visual Studio C++, SDK Windows et CMake, puis Construire_Windows.ps1.
 
 Identité VST3 conservée `Anks/Arlc`. Ne pas scanner simultanément plusieurs versions de même identifiant; conserver les anciennes archives et une copie des projets. Un ancien chemin de plugin peut demander une nouvelle sélection dans Curve Pilot.
 

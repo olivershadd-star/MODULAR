@@ -21,7 +21,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Compilation ou tests en echec.' }
           $projectPath = $buildScript.DirectoryName
           $pluginPath = Join-Path $projectPath 'build-win/ANKSResonantLab_artefacts/Release/VST3'
-          $stagePath = Join-Path $env:RUNNER_TEMP 'ANKS_Resonant_Lab_1_3_Alpha'
+          $stagePath = Join-Path $env:RUNNER_TEMP 'ANKS_Resonant_Lab_1_3_Alpha_2'
           New-Item -ItemType Directory -Force $stagePath | Out-Null
           Copy-Item -Path "$pluginPath/*.vst3" -Destination $stagePath -Recurse
           $standalonePath = Join-Path $projectPath 'build-win/ANKSResonantLab_artefacts/Release/Standalone'
@@ -32,11 +32,11 @@ jobs:
           Copy-Item -Path (Join-Path $projectPath 'README.md') -Destination $stagePath
           $deliveryPath = Join-Path $env:GITHUB_WORKSPACE 'Livraison'
           New-Item -ItemType Directory -Force $deliveryPath | Out-Null
-          Compress-Archive -Path "$stagePath/*" -DestinationPath "$deliveryPath/ANKS_Resonant_Lab_V1_3_Alpha_Windows.zip"
+          Compress-Archive -Path "$stagePath/*" -DestinationPath "$deliveryPath/ANKS_Resonant_Lab_V1_3_Alpha_2_Windows.zip"
       - name: Telecharger le VST3
         uses: actions/upload-artifact@v4
         with:
-          name: ANKS-Resonant-Lab-V1-3-Alpha-Windows
+          name: ANKS-Resonant-Lab-V1-3-Alpha-2-Windows
           path: Livraison/*.zip
           if-no-files-found: error
       - name: Rapports de tests

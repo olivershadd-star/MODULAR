@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <vector>
 #include "RackTypes.h"
+#include "FmSource.h"
 namespace anks {
 constexpr double pi=3.14159265358979323846;
 inline double midiHz(double n){return 440*std::exp2((n-69)/12);}
@@ -20,7 +21,7 @@ struct Parameters{
  double inputDb=0,outputDb=0,bodyMix=0.8,balance=0.5,cutoff=6000,driveDb=6;
  double attack=0,release=0.3,root=60;
  bool filterOn=false,driveOn=false,bodiesOn=true,useSample=false,loop=false;
- int route=0;int waveform=0;RackConfig rack;
+ int route=0;int waveform=0;RackConfig rack;FmParameters fm;
 };
 // Orders refer to real signal flow: filter, saturation, double resonator.
 inline constexpr std::array<std::array<int,3>,6> routes{{{{0,1,2}},{{0,2,1}},{{1,0,2}},{{1,2,0}},{{2,0,1}},{{2,1,0}}}};
@@ -55,27 +56,28 @@ private:
 namespace anks {
 struct Voice{
  bool active=false,held=false;int note=-1,channel=1,origin=0;uint64_t serial=0;double envelope=0;
- void prepare(double sr){rate=sr;slew=1-std::exp(-1/(rate*0.01));for(auto&r:bodies)r.prepare(sr);for(auto&r:rackModules)r.prepare(sr);active=false;}
+ void prepare(double sr){rate=sr;fm.prepare(sr);slew=1-std::exp(-1/(rate*0.01));for(auto&r:bodies)r.prepare(sr);for(auto&r:rackModules)r.prepare(sr);active=false;}
  void start(int n,int ch,double vel,uint64_t order,const Parameters&p,const Sample*s,double pitch){
   note=n;channel=ch;velocity=vel;serial=order;sample=s;held=active=true;envelope=0;age=0;cursor=0;filterState=0;
   random=uint32_t(n+1)*747796405u+uint32_t(ch);for(auto&r:bodies)r.reset();bend=pitch;params=p;
   input=dbGain(p.inputDb);mix=p.bodyMix;balance=p.balance;filterWet=p.filterOn?1:0;driveWet=p.driveOn?1:0;bodyWet=p.bodiesOn?1:0;drive=dbGain(p.driveDb);
   for(size_t i=0;i<2;++i){level[i]=dbGain(p.body[i].levelDb);enabled[i]=p.body[i].enabled?1:0;}
-  tailAge=0;targets();filterCoefficient=filterTarget;refresh();oscPhase=0;for(size_t i=0;i<4;++i){rackModules[i].reset();rackModules[i].configure(p.rack.modules[i],midiHz(note+bend),p.rack.clockRunning?p.rack.bpm:0,p.rack.ppq,true);}
+  fm.reset();fm.configure(midiHz(note+bend),p.fm,p.attack,p.release,velocity,true);tailAge=0;targets();filterCoefficient=filterTarget;refresh();oscPhase=0;for(size_t i=0;i<4;++i){rackModules[i].reset();rackModules[i].configure(p.rack.modules[i],midiHz(note+bend),p.rack.clockRunning?p.rack.bpm:0,p.rack.ppq,true);}
  }
  void apply(const Parameters&p){
-  bool dirty=!(params.body[0]==p.body[0])||!(params.body[1]==p.body[1]);params=p;targets();if(dirty)refresh();
+  bool dirty=!(params.body[0]==p.body[0])||!(params.body[1]==p.body[1]);params=p;targets();if(dirty)refresh();if(p.fm.enabled)fm.configure(midiHz(note+bend),p.fm,p.attack,p.release,velocity);
   step=(sample?sample->rate/rate:1)*std::exp2((note+bend-params.root)/12);
   if(p.rack.enabled)for(size_t i=0;i<4;++i)rackModules[i].configure(p.rack.modules[i],midiHz(note+bend),p.rack.clockRunning?p.rack.bpm:0,p.rack.ppq);
  }
- void pitch(double semitones){bend=semitones;refresh();if(params.rack.enabled)for(size_t i=0;i<4;++i)rackModules[i].configure(params.rack.modules[i],midiHz(note+bend),params.rack.clockRunning?params.rack.bpm:0,params.rack.ppq,false,false);}
+ void pitch(double semitones){bend=semitones;refresh();if(params.fm.enabled)fm.configure(midiHz(note+bend),params.fm,params.attack,params.release,velocity);if(params.rack.enabled)for(size_t i=0;i<4;++i)rackModules[i].configure(params.rack.modules[i],midiHz(note+bend),params.rack.clockRunning?params.rack.bpm:0,params.rack.ppq,false,false);}
  void release(){held=false;}
  Stereo nextStereo(){
   if(!active)return {};
   if(held)envelope=std::min(1.0,envelope+attackStep);else envelope*=releaseFactor;
   if(envelope<0.00001&&!held){if(!params.rack.enabled||++tailAge>uint64_t(rate*tailSeconds)){active=false;return {};}}
   double x=0;
-  if(params.useSample&&sample&&!sample->mono.empty()){
+  if(params.fm.enabled)x=fm.next(held);
+  else if(params.useSample&&sample&&!sample->mono.empty()){
    size_t len=sample->mono.size();if(cursor<double(len)){size_t i=size_t(cursor),j=i+1<len?i+1:(params.loop?size_t(0):i);x=sample->mono[i]+(sample->mono[j]-sample->mono[i])*(cursor-double(i));cursor+=step;if(params.loop&&cursor>=double(len))cursor=std::fmod(cursor,double(len));}
   }else if(params.waveform>0){x=.25*(params.waveform==1?std::sin(2*pi*oscPhase):params.waveform==2?4*std::abs(oscPhase-.5)-1:params.waveform==3?2*oscPhase-1:(oscPhase<.5?1:-1));oscPhase+=std::min(.45,midiHz(note+bend)/rate);oscPhase-=std::floor(oscPhase);}
   else{random^=random<<13;random^=random>>17;random^=random<<5;if(age<uint64_t(rate*0.008))x=(double(random)/4294967295.0*2-1)*std::exp(-double(age)/(rate*0.002))*0.5;}
@@ -84,7 +86,7 @@ struct Voice{
   filterWet+=slew*((params.filterOn?1.0:0.0)-filterWet);driveWet+=slew*((params.driveOn?1.0:0.0)-driveWet);bodyWet+=slew*((params.bodiesOn?1.0:0.0)-bodyWet);
   filterCoefficient+=slew*(filterTarget-filterCoefficient);
   x*=input*velocity;
-  if(params.rack.enabled){double exciterEnvelope=envelope>=.00001?envelope:0;Stereo signal{x*exciterEnvelope,x*exciterEnvelope};for(int id:rackOrders()[size_t(std::clamp(params.rack.order,0,23))]){rackModules[size_t(id)].setGate(held);signal=rackModules[size_t(id)].next(signal);}if(tailAge){double remaining=rate*tailSeconds-double(tailAge);double fade=std::clamp(remaining/(rate*.02),0.,1.);signal.left*=fade;signal.right*=fade;}return signal;}
+  if(params.rack.enabled){double exciterEnvelope=params.fm.enabled?1.:(envelope>=.00001?envelope:0);Stereo signal{x*exciterEnvelope,x*exciterEnvelope};for(int id:rackOrders()[size_t(std::clamp(params.rack.order,0,23))]){rackModules[size_t(id)].setGate(held);signal=rackModules[size_t(id)].next(signal);}if(tailAge){double remaining=rate*tailSeconds-double(tailAge);double fade=std::clamp(remaining/(rate*.02),0.,1.);signal.left*=fade;signal.right*=fade;}return signal;}
   else for(int module:routes[size_t(std::clamp(params.route,0,5))]){
    if(module==0){filterState+=filterCoefficient*(x-filterState);x+=filterWet*(filterState-x);}
    else if(module==1){double y=std::tanh(x*drive);x+=driveWet*(y-x);}
@@ -98,13 +100,13 @@ struct Voice{
     x+=bodyWet*mix*(y-x);
    }
   }
-  return {x*envelope,x*envelope};
+  return {x*(params.fm.enabled?1.:envelope),x*(params.fm.enabled?1.:envelope)};
  }
 private:
  void targets(){tailSeconds=rackTailSeconds(params.rack);inputTarget=dbGain(params.inputDb);driveTarget=dbGain(params.driveDb);for(size_t i=0;i<2;++i)levelTarget[i]=dbGain(params.body[i].levelDb);attackStep=params.attack<=0?1:1/(rate*params.attack);releaseFactor=std::exp(std::log(0.00001)/(rate*std::max(0.01,params.release)));filterTarget=1-std::exp(-2*pi*std::clamp(params.cutoff,30.0,rate*0.45)/rate);}
  void refresh(){for(size_t i=0;i<2;++i)bodies[i].tune(midiHz(note+bend+params.body[i].detune/100),params.body[i]);step=(sample?sample->rate/rate:1)*std::exp2((note+bend-params.root)/12);}
  std::array<StereoRackModule,4>rackModules;double oscPhase=0,tailSeconds=0;uint64_t tailAge=0;
- Parameters params;const Sample*sample=nullptr;std::array<Resonator,2>bodies;
+ FmSource fm;Parameters params;const Sample*sample=nullptr;std::array<Resonator,2>bodies;
  double rate=48000,slew=0.001,velocity=0,step=1,cursor=0,bend=0,filterState=0;
  double input=1,mix=0.8,balance=0.5,drive=1,filterWet=0,driveWet=0,bodyWet=1;
  double inputTarget=1,driveTarget=1,filterCoefficient=0.5,filterTarget=0.5,attackStep=1,releaseFactor=0.99;

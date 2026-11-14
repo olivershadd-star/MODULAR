@@ -9,6 +9,7 @@ ResonantLab::ResonantLab():AudioProcessor(BusesProperties().withOutput("Output",
  for(size_t i=0;i<15;++i)sharedPointers[i]=state.getRawParameterValue(ids[i]);
  const char*seqIds[]={"seq_on","seq_clock","seq_run","seq_bpm","seq_length","seq_division","seq_channel"};for(size_t i=0;i<7;++i)sequencePointers[i]=state.getRawParameterValue(seqIds[i]);
  const char*fields[]={"on","note","velocity","gate"};for(size_t i=0;i<16;++i)for(size_t j=0;j<4;++j)stepPointers[i][j]=state.getRawParameterValue("seq_"+juce::String(int(i+1)).paddedLeft('0',2)+"_"+fields[j]);
+ const char*fmIds[]={"fm_on","fm_ratio","fm_index","fm_feedback","fm_mod_attack","fm_mod_decay","fm_mod_sustain","fm_mod_release","fm_velocity","fm_amp_decay","fm_amp_sustain"};for(size_t i=0;i<fmPointers.size();++i)fmPointers[i]=state.getRawParameterValue(fmIds[i]);
  rackEnabled=state.getRawParameterValue("rack_on");rackOrder=state.getRawParameterValue("rack_order");wavePointer=state.getRawParameterValue("waveform");
  for(size_t i=0;i<4;++i){auto prefix="m"+juce::String(int(i+1))+"_";rackTypes[i]=state.getRawParameterValue(prefix+"type");for(size_t j=0;j<anks::rackFields.size();++j)rackPointers[i][j]=state.getRawParameterValue(prefix+anks::rackFields[j].id);}
 
@@ -49,10 +50,23 @@ juce::AudioProcessorValueTreeState::ParameterLayout ResonantLab::layout(){
  for(int i=0;i<4;++i){auto prefix="m"+juce::String(i+1)+"_",title="Instance "+juce::String(i+1)+" ";l.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{prefix+"type",1},title+"module",juce::StringArray{"Vide","Double corps","Filtre / EQ","Saturation","Granulaire","Delay","Chorus","Decalage de frequence","Freeze spectral","Semi-modulaire"},i==0?1:0));for(size_t j=0;j<50;++j){auto&f=anks::rackFields[j];add(prefix+f.id,title+f.label,f.min,f.max,f.step,f.initial,f.skew);}}
  for(int i=0;i<4;++i)add("m"+juce::String(i+1)+"_disto_mode","Instance "+juce::String(i+1)+" type disto",0,2,1,0);
  for(int i=0;i<4;++i)for(size_t j=51;j<anks::rackFields.size();++j){auto&f=anks::rackFields[j];add("m"+juce::String(i+1)+"_"+f.id,"Instance "+juce::String(i+1)+" "+f.label,f.min,f.max,f.step,f.initial,f.skew);}
+
+ add("fm_on","Source FM active",0.0f,1.0f,1.0f,0.0f,1.0f);
+ add("fm_ratio","FM rapport",0.125f,16.0f,0.001f,2.0f,1.0f);
+ add("fm_index","FM intensite",0.0f,12.0f,0.001f,2.0f,1.0f);
+ add("fm_feedback","FM feedback",0.0f,0.95f,0.001f,0.0f,1.0f);
+ add("fm_mod_attack","FM modulation attaque s",0.001f,2.0f,0.001f,0.005f,0.4f);
+ add("fm_mod_decay","FM modulation declin s",0.005f,8.0f,0.001f,0.6f,0.4f);
+ add("fm_mod_sustain","FM modulation maintien",0.0f,1.0f,0.001f,0.0f,1.0f);
+ add("fm_mod_release","FM modulation relachement s",0.005f,8.0f,0.001f,0.3f,0.4f);
+ add("fm_velocity","FM sensibilite velocite",0.0f,1.0f,0.001f,0.5f,1.0f);
+ add("fm_amp_decay","FM volume declin s",0.005f,8.0f,0.001f,0.5f,0.4f);
+ add("fm_amp_sustain","FM volume maintien",0.0f,1.0f,0.001f,1.0f,1.0f);
  return l;
 }
 void ResonantLab::updateParameters(){
  readRack();auto&p=engine.parameters;
+ auto fm=[&](size_t i){return fmPointers[i]->load();};p.fm.enabled=fm(0)>.5f;p.fm.ratio=fm(1);p.fm.index=fm(2);p.fm.feedback=fm(3);p.fm.modAttack=fm(4);p.fm.modDecay=fm(5);p.fm.modSustain=fm(6);p.fm.modRelease=fm(7);p.fm.velocity=fm(8);p.fm.ampDecay=fm(9);p.fm.ampSustain=fm(10);
  for(size_t i=0;i<2;++i){auto get=[&](size_t j){return bodyPointers[i][j]->load();};auto&b=p.body[i];b.decay=get(0);b.brightness=get(1);b.position=get(2);b.detune=get(3);b.levelDb=get(4);b.enabled=get(5)>0.5f;b.odd=get(6)>0.5f;}
  auto get=[&](size_t j){return sharedPointers[j]->load();};p.inputDb=get(0);p.outputDb=get(1);p.bodyMix=get(2);p.balance=get(3);p.cutoff=get(4);p.driveDb=get(5);p.attack=get(6);p.release=get(7);p.root=get(8);p.filterOn=get(9)>0.5f;p.driveOn=get(10)>0.5f;p.bodiesOn=get(11)>0.5f;p.useSample=get(12)>0.5f;p.loop=get(13)>0.5f;p.route=int(get(14));
 }
@@ -102,12 +116,12 @@ juce::String ResonantLab::loadSample(const juce::File&file){
 juce::String ResonantLab::loadSampleBytes(juce::MemoryBlock bytes,const juce::String&name){
  std::unique_ptr<anks::Sample>s;auto error=decode(bytes,s);if(error.isNotEmpty())return error;
  {const juce::ScopedLock lock(getCallbackLock());const juce::ScopedLock metadataLock(sampleStateLock);engine.panic();sequence.reset();source=std::move(s);engine.sample=source.get();sourceBytes=std::move(bytes);sourceName=name;}
- state.getParameter("sample")->setValueNotifyingHost(1);return {};
+ state.getParameter("fm_on")->setValueNotifyingHost(0);state.getParameter("sample")->setValueNotifyingHost(1);return {};
 }
 juce::String ResonantLab::loadFactory(int index){int size=0;auto*data=anks::factory::bytes(index,size);if(!data||size<=0)return "Excitation interne absente.";auto error=loadSampleBytes(juce::MemoryBlock(data,size),anks::factory::name(index));if(error.isEmpty()){auto*p=state.getParameter("root");p->beginChangeGesture();p->setValueNotifyingHost(p->convertTo0to1(float(anks::factory::root(index))));p->endChangeGesture();}return error;}
 juce::String ResonantLab::sampleLabel(){const juce::ScopedLock lock(sampleStateLock);return sourceName;}
 void ResonantLab::getStateInformation(juce::MemoryBlock&dest){
- auto snapshot=state.copyState();snapshot.setProperty("anksSuiteSchema",3,nullptr);snapshot.setProperty("instrumentVersion","1.3.0-alpha.1",nullptr);{const juce::ScopedLock lock(sampleStateLock);snapshot.setProperty("sourceName",sourceName,nullptr);snapshot.setProperty("audioBase64",sourceBytes.toBase64Encoding(),nullptr);}
+ auto snapshot=state.copyState();snapshot.setProperty("anksSuiteSchema",3,nullptr);snapshot.setProperty("instrumentVersion","1.3.0-alpha.2",nullptr);{const juce::ScopedLock lock(sampleStateLock);snapshot.setProperty("sourceName",sourceName,nullptr);snapshot.setProperty("audioBase64",sourceBytes.toBase64Encoding(),nullptr);}
  auto xml=snapshot.createXml();copyXmlToBinary(*xml,dest);
 }
 void ResonantLab::setStateInformation(const void*data,int size){restoreState(data,size);}

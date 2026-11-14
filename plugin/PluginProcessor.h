@@ -32,6 +32,7 @@ public:
  void editBodyParameter(size_t,float);
 private:
  bool restoreState(const void*,int);void readRack();
+ std::array<std::atomic<float>*,11>fmPointers{};
  std::atomic<float>*rackEnabled=nullptr,*rackOrder=nullptr,*wavePointer=nullptr;
  std::array<std::atomic<float>*,4>rackTypes{};std::array<std::array<std::atomic<float>*,anks::rackFields.size()>,4>rackPointers{};
  double freePpq=0,audioRate=48000;
