@@ -1,0 +1,146 @@
+[
+  {
+    "file": "Bois_Creux.wav",
+    "category": "Bois et cordes",
+    "root": 48,
+    "seconds": 1.6
+  },
+  {
+    "file": "Corde_Pincee.wav",
+    "category": "Bois et cordes",
+    "root": 45,
+    "seconds": 1.6
+  },
+  {
+    "file": "Kalimba_Douce.wav",
+    "category": "Bois et cordes",
+    "root": 60,
+    "seconds": 1.6
+  },
+  {
+    "file": "Marimba_Fibre.wav",
+    "category": "Bois et cordes",
+    "root": 48,
+    "seconds": 1.6
+  },
+  {
+    "file": "Corde_Frottee.wav",
+    "category": "Bois et cordes",
+    "root": 55,
+    "seconds": 1.6
+  },
+  {
+    "file": "Bambou_Pulse.wav",
+    "category": "Bois et cordes",
+    "root": 60,
+    "seconds": 1.6
+  },
+  {
+    "file": "Cloche_Felee.wav",
+    "category": "Metaux",
+    "root": 60,
+    "seconds": 2.0
+  },
+  {
+    "file": "Plaque_Vibrante.wav",
+    "category": "Metaux",
+    "root": 48,
+    "seconds": 2.0
+  },
+  {
+    "file": "Ressort_Metallique.wav",
+    "category": "Metaux",
+    "root": 55,
+    "seconds": 2.0
+  },
+  {
+    "file": "Bol_Chantant.wav",
+    "category": "Metaux",
+    "root": 57,
+    "seconds": 2.0
+  },
+  {
+    "file": "Carillon_Mobile.wav",
+    "category": "Metaux",
+    "root": 72,
+    "seconds": 2.0
+  },
+  {
+    "file": "Lamelle_Rouillee.wav",
+    "category": "Metaux",
+    "root": 45,
+    "seconds": 2.0
+  },
+  {
+    "file": "Papier_Froisse.wav",
+    "category": "Textures organiques",
+    "root": 60,
+    "seconds": 2.2
+  },
+  {
+    "file": "Sable_Roulant.wav",
+    "category": "Textures organiques",
+    "root": 60,
+    "seconds": 2.2
+  },
+  {
+    "file": "Brosse_Granuleuse.wav",
+    "category": "Textures organiques",
+    "root": 60,
+    "seconds": 2.2
+  },
+  {
+    "file": "Gouttes_Resonantes.wav",
+    "category": "Textures organiques",
+    "root": 60,
+    "seconds": 2.2
+  },
+  {
+    "file": "Souffle_Anche.wav",
+    "category": "Textures organiques",
+    "root": 50,
+    "seconds": 2.2
+  },
+  {
+    "file": "Crepitement_Doux.wav",
+    "category": "Textures organiques",
+    "root": 60,
+    "seconds": 2.2
+  },
+  {
+    "file": "FM_Evolutive.wav",
+    "category": "Matieres numeriques",
+    "root": 36,
+    "seconds": 2.4
+  },
+  {
+    "file": "Impulsions_Irisees.wav",
+    "category": "Matieres numeriques",
+    "root": 60,
+    "seconds": 2.4
+  },
+  {
+    "file": "Spectre_Mouvant.wav",
+    "category": "Matieres numeriques",
+    "root": 48,
+    "seconds": 2.4
+  },
+  {
+    "file": "Voyelle_Morphing.wav",
+    "category": "Matieres numeriques",
+    "root": 45,
+    "seconds": 2.4
+  },
+  {
+    "file": "Pixels_Fondants.wav",
+    "category": "Matieres numeriques",
+    "root": 60,
+    "seconds": 2.4
+  },
+  {
+    "file": "Nuage_Harmonique.wav",
+    "category": "Matieres numeriques",
+    "root": 55,
+    "seconds": 2.4
+  }
+]

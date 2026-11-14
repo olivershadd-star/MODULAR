@@ -50,7 +50,7 @@ int main(){
  // Stable old parameter order: new distortion modes are appended after all V1.1 IDs.
  for(int i=1;i<=4;++i){auto prefix="m"+juce::String(i)+"_";int index=q->state.getParameter(prefix+"type")->getParameterIndex();for(size_t j=0;j<50;++j)check(q->state.getParameter(prefix+anks::rackFields[j].id)->getParameterIndex()==index+1+int(j),"old parameter index moved");check(q->state.getParameter(prefix+"disto_mode")->getParameterIndex()>q->state.getParameter("m4_depth")->getParameterIndex(),"new mode was inserted into old order");}
  // Embedded factory samples: no sidecar file is consulted, and the result embeds in state.
- for(int i=0;i<anks::factory::count();++i){check(q->loadFactory(i).isEmpty(),"embedded factory decode");check(q->sampleLabel()==anks::factory::name(i),"factory label");}check(anks::factory::count()==12,"factory count");check(!q->loadFactory(-1).isEmpty(),"invalid factory index");
+ for(int i=0;i<anks::factory::count();++i){check(q->loadFactory(i).isEmpty(),"embedded factory decode");check(q->sampleLabel()==anks::factory::name(i),"factory label");}check(anks::factory::count()==36,"factory count");check(!q->loadFactory(-1).isEmpty(),"invalid factory index");
  q->getStateInformation(rackState);p->setStateInformation(rackState.getData(),int(rackState.getSize()));check(p->sampleLabel()==q->sampleLabel(),"factory source state portable");
  // Actual plugin: short notes from a host-style MIDI clip, source is a real embedded impact.
  for(int type:{4,5,6}){

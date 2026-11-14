@@ -1,4 +1,4 @@
-# ANKS Resonant Lab 1.2 alpha 2
+# ANKS Resonant Lab 1.2 alpha 3
 
 Instrument C++ / JUCE 8.0.6 — VST3 et application autonome Windows x64. Auteur : ANKS.
 
@@ -6,10 +6,14 @@ Cette révision conserve uniquement l’interface rack et retire la case de basc
 
 Cette version corrige les effets de la V1.1 et remplace son rack défilant par une vue compacte à knobs. Les archives précédentes sont conservées séparément.
 
+## Banque d’excitations
+
+36 sources embarquées, classées en cinq familles : Classiques (les 12 originales), Bois et cordes, Métaux, Textures organiques et Matières numériques (6 nouveautés par famille). Les anciennes sources et leurs indices restent identiques. Les 24 ajouts sont des synthèses originales, mono PCM16 / 48 kHz, crête proche de −6 dBFS, durée 1,6 à 2,4 s. Voir `Excitations/BANQUE_FACTORY.md`.
+
 ## Prise en main
 
 1. Copier le dossier complet ANKS Resonant Lab.vst3 dans le dossier VST3 Windows, puis scanner dans Ableton.
-2. Choisir une **Excitation intégrée** ou cliquer directement **Importer WAV**. Les douze excitations sont compilées dans le VST3 et dans l'application : aucun dossier de WAV à installer à côté.
+2. Choisir une **Excitation intégrée** ou cliquer directement **Importer WAV**. Les 36 excitations sont compilées dans le VST3 et dans l'application : aucun dossier de WAV à installer à côté.
 3. Jouer un clip MIDI dans Ableton, choisir le module de A et cocher ON. B/C/D peuvent rester vides.
 4. Le knob Mix indique le pourcentage traité. À 100 %, le granulaire, le delay et le chorus donnent uniquement le signal traité : aucun son direct de secours n'est ajouté.
 
@@ -53,7 +57,7 @@ Le moteur classique est conservé pour les anciens projets V0.3/V1 sans rack. Le
 ## Sources et presets
 
 - **Importer WAV** accepte WAV/AIFF jusqu'à 10 s / 16 Mo, 8–192 kHz. Il conserve la chaîne et le pattern. La boucle reste celle du fichier entier.
-- **Excitations intégrées** charge une des 12 sources ANKS et sa racine suggérée. Aucun fichier audio externe n'est lu pour cette opération.
+- **Excitations intégrées** charge une des 36 sources ANKS et sa racine suggérée. Aucun fichier audio externe n'est lu pour cette opération.
 - WAV décoché : Impact interne, Sinus, Triangle ou Dent de scie.
 - **Création complète / .anksres** : source embarquée, tous les réglages et séquence. Le projet hôte sauvegarde le même état complet.
 - **Chaîne / .ankschain** : instances, ordre, modulations, entrée/sortie; conserve la source, la racine, la boucle, l'enveloppe et le pattern courants.

@@ -6,6 +6,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_executable(test_core tests/test_engine.cpp)
 target_include_directories(test_core PRIVATE src)
 enable_testing()
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+ add_test(NAME factory_bank COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_factory_bank.py")
+endif()
 add_test(NAME core COMMAND test_core)
 add_executable(test_sequencer tests/test_sequencer.cpp)
 target_include_directories(test_sequencer PRIVATE src)
@@ -40,6 +44,30 @@ if(ANKS_BUILD_PLUGIN)
   Excitations/Souffle_Continu.wav
   Excitations/Verre_Aigu.wav
   Excitations/Voyelle_Synthetique.wav
+  Excitations/Bois_Creux.wav
+  Excitations/Corde_Pincee.wav
+  Excitations/Kalimba_Douce.wav
+  Excitations/Marimba_Fibre.wav
+  Excitations/Corde_Frottee.wav
+  Excitations/Bambou_Pulse.wav
+  Excitations/Cloche_Felee.wav
+  Excitations/Plaque_Vibrante.wav
+  Excitations/Ressort_Metallique.wav
+  Excitations/Bol_Chantant.wav
+  Excitations/Carillon_Mobile.wav
+  Excitations/Lamelle_Rouillee.wav
+  Excitations/Papier_Froisse.wav
+  Excitations/Sable_Roulant.wav
+  Excitations/Brosse_Granuleuse.wav
+  Excitations/Gouttes_Resonantes.wav
+  Excitations/Souffle_Anche.wav
+  Excitations/Crepitement_Doux.wav
+  Excitations/FM_Evolutive.wav
+  Excitations/Impulsions_Irisees.wav
+  Excitations/Spectre_Mouvant.wav
+  Excitations/Voyelle_Morphing.wav
+  Excitations/Pixels_Fondants.wav
+  Excitations/Nuage_Harmonique.wav
 )
  add_library(ANKSFactoryAdapter STATIC src/FactorySources.cpp)
  set_target_properties(ANKSFactory ANKSFactoryAdapter PROPERTIES POSITION_INDEPENDENT_CODE ON)
