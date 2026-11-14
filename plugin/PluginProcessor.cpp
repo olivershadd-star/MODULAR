@@ -45,9 +45,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout ResonantLab::layout(){
  toggle("rack_on","Architecture rack active",true);
  juce::StringArray orders;for(auto&o:anks::rackOrders())orders.add(juce::String(o[0]+1)+" > "+juce::String(o[1]+1)+" > "+juce::String(o[2]+1)+" > "+juce::String(o[3]+1));
  l.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"rack_order",1},"Ordre instances rack",orders,0));
- l.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"waveform",1},"Onde interne",juce::StringArray{"Impact","Sinus","Triangle","Dent de scie"},0));
- for(int i=0;i<4;++i){auto prefix="m"+juce::String(i+1)+"_",title="Instance "+juce::String(i+1)+" ";l.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{prefix+"type",1},title+"module",juce::StringArray{"Vide","Double corps","Filtre / EQ","Saturation","Granulaire","Delay","Chorus"},i==0?1:0));for(size_t j=0;j<50;++j){auto&f=anks::rackFields[j];add(prefix+f.id,title+f.label,f.min,f.max,f.step,f.initial,f.skew);}}
+ l.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"waveform",1},"Onde interne",juce::StringArray{"Impact","Sinus","Triangle","Dent de scie","Carre"},0));
+ for(int i=0;i<4;++i){auto prefix="m"+juce::String(i+1)+"_",title="Instance "+juce::String(i+1)+" ";l.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{prefix+"type",1},title+"module",juce::StringArray{"Vide","Double corps","Filtre / EQ","Saturation","Granulaire","Delay","Chorus","Decalage de frequence","Freeze spectral","Semi-modulaire"},i==0?1:0));for(size_t j=0;j<50;++j){auto&f=anks::rackFields[j];add(prefix+f.id,title+f.label,f.min,f.max,f.step,f.initial,f.skew);}}
  for(int i=0;i<4;++i)add("m"+juce::String(i+1)+"_disto_mode","Instance "+juce::String(i+1)+" type disto",0,2,1,0);
+ for(int i=0;i<4;++i)for(size_t j=51;j<anks::rackFields.size();++j){auto&f=anks::rackFields[j];add("m"+juce::String(i+1)+"_"+f.id,"Instance "+juce::String(i+1)+" "+f.label,f.min,f.max,f.step,f.initial,f.skew);}
  return l;
 }
 void ResonantLab::updateParameters(){
@@ -106,7 +107,7 @@ juce::String ResonantLab::loadSampleBytes(juce::MemoryBlock bytes,const juce::St
 juce::String ResonantLab::loadFactory(int index){int size=0;auto*data=anks::factory::bytes(index,size);if(!data||size<=0)return "Excitation interne absente.";auto error=loadSampleBytes(juce::MemoryBlock(data,size),anks::factory::name(index));if(error.isEmpty()){auto*p=state.getParameter("root");p->beginChangeGesture();p->setValueNotifyingHost(p->convertTo0to1(float(anks::factory::root(index))));p->endChangeGesture();}return error;}
 juce::String ResonantLab::sampleLabel(){const juce::ScopedLock lock(sampleStateLock);return sourceName;}
 void ResonantLab::getStateInformation(juce::MemoryBlock&dest){
- auto snapshot=state.copyState();snapshot.setProperty("anksSuiteSchema",3,nullptr);snapshot.setProperty("instrumentVersion","1.2.0-alpha.3",nullptr);{const juce::ScopedLock lock(sampleStateLock);snapshot.setProperty("sourceName",sourceName,nullptr);snapshot.setProperty("audioBase64",sourceBytes.toBase64Encoding(),nullptr);}
+ auto snapshot=state.copyState();snapshot.setProperty("anksSuiteSchema",3,nullptr);snapshot.setProperty("instrumentVersion","1.3.0-alpha.1",nullptr);{const juce::ScopedLock lock(sampleStateLock);snapshot.setProperty("sourceName",sourceName,nullptr);snapshot.setProperty("audioBase64",sourceBytes.toBase64Encoding(),nullptr);}
  auto xml=snapshot.createXml();copyXmlToBinary(*xml,dest);
 }
 void ResonantLab::setStateInformation(const void*data,int size){restoreState(data,size);}
@@ -177,6 +178,10 @@ void ResonantLab::readRack(){
   p.feedback=v(47);
   p.rate=v(48);
   p.depth=v(49);p.distoMode=int(v(50));
+  p.shiftHz=v(51);p.freezeHold=v(52)>.5f;
+  p.smCutoff=v(53);p.smResonance=v(54);p.smDrive=v(55);p.smHighpass=v(56)>.5f;
+  p.smAttack=v(57);p.smDecay=v(58);p.smSustain=v(59);p.smRelease=v(60);p.smDrone=v(61)>.5f;p.smLfoRate=v(62);p.smLfoShape=v(63)>.5f;
+  for(size_t r=0;r<2;++r){p.smSource[r]=int(v(64+r*3));p.smDestination[r]=int(v(65+r*3));p.smAmount[r]=v(66+r*3);}
  }
 }
 
@@ -192,17 +197,17 @@ void ResonantLab::convertLegacy(){
  auto old=anks::routes[size_t(juce::jlimit(0,5,int(value("route"))))];std::array<int,4>order{{(old[0]+1)%3,(old[1]+1)%3,(old[2]+1)%3,3}};for(size_t i=0;i<24;++i)if(anks::rackOrders()[i]==order)put("rack_order",float(i));put("rack_on",1);
 }
 bool ResonantLab::saveRecipe(const juce::File&file,bool module,int identity){
- if(identity<0||identity>3)return false;auto tree=state.copyState();juce::XmlElement xml("ANKS_RECIPE");xml.setAttribute("schema",2);xml.setAttribute("kind",module?"module":"chain");auto prefix="m"+juce::String(identity+1)+"_";
+ if(identity<0||identity>3)return false;auto tree=state.copyState();juce::XmlElement xml("ANKS_RECIPE");xml.setAttribute("schema",3);xml.setAttribute("kind",module?"module":"chain");auto prefix="m"+juce::String(identity+1)+"_";
  for(int i=0;i<tree.getNumChildren();++i){auto c=tree.getChild(i);auto id=c.getProperty("id").toString();if((module&&id.startsWith(prefix))||(!module&&(id.startsWith("m1_")||id.startsWith("m2_")||id.startsWith("m3_")||id.startsWith("m4_")||id=="rack_order"||id=="input"||id=="output"))){auto*e=xml.createNewChildElement("PARAM");e->setAttribute("id",module?id.substring(prefix.length()):id);e->setAttribute("value",double(c.getProperty("value")));}}
  return file.replaceWithText(xml.toString());
 }
 bool ResonantLab::loadRecipe(const juce::File&file,bool module,int identity){
- if(identity<0||identity>3||file.getSize()>1024*1024)return false;auto xml=juce::XmlDocument::parse(file);if(!xml||!xml->hasTagName("ANKS_RECIPE")||(xml->getIntAttribute("schema")!=1&&xml->getIntAttribute("schema")!=2)||xml->getStringAttribute("kind")!=(module?"module":"chain"))return false;
+ if(identity<0||identity>3||file.getSize()>1024*1024)return false;auto xml=juce::XmlDocument::parse(file);if(!xml||!xml->hasTagName("ANKS_RECIPE")||(xml->getIntAttribute("schema")<1||xml->getIntAttribute("schema")>3)||xml->getStringAttribute("kind")!=(module?"module":"chain"))return false;
  std::vector<std::pair<juce::RangedAudioParameter*,float>>pending;juce::StringArray seen;auto prefix="m"+juce::String(identity+1)+"_";
  for(auto*e:xml->getChildIterator()){auto key=e->getStringAttribute("id");if(seen.contains(key))return false;seen.add(key);auto id=module?prefix+key:key;
  bool allowed=module?id.startsWith(prefix):(id.startsWith("m1_")||id.startsWith("m2_")||id.startsWith("m3_")||id.startsWith("m4_")||id=="rack_order"||id=="input"||id=="output");auto*p=state.getParameter(id);double v=e->getDoubleAttribute("value",std::numeric_limits<double>::quiet_NaN());if(!allowed||!p||!std::isfinite(v)||v<p->getNormalisableRange().start||v>p->getNormalisableRange().end)return false;pending.emplace_back(p,float(v));}
- // V1.1 recipes lacked only the four distortion modes. Supply their neutral default.
- if(xml->getIntAttribute("schema")==1){for(int i=0;i<(module?1:4);++i){auto key=module?juce::String("disto_mode"):"m"+juce::String(i+1)+"_disto_mode";if(!seen.contains(key))pending.emplace_back(state.getParameter(module?prefix+key:key),0.f);}}
+ // Append new controls at their defaults when loading earlier recipe schemas.
+ if(xml->getIntAttribute("schema")<3){size_t first=xml->getIntAttribute("schema")==1?50:51;for(int i=0;i<(module?1:4);++i)for(size_t j=first;j<anks::rackFields.size();++j){auto&f=anks::rackFields[j];auto key=module?juce::String(f.id):"m"+juce::String(i+1)+"_"+f.id;if(!seen.contains(key))pending.emplace_back(state.getParameter(module?prefix+key:key),f.initial);}}
  const int required=module?int(anks::rackFields.size()+1):int(4*(anks::rackFields.size()+1)+3);if(int(pending.size())!=required)return false;
  const juce::ScopedLock lock(getCallbackLock());engine.panic();sequence.reset();for(auto&entry:pending){entry.first->beginChangeGesture();entry.first->setValueNotifyingHost(entry.first->convertTo0to1(entry.second));entry.first->endChangeGesture();}state.getParameter("rack_on")->setValueNotifyingHost(1);return true;
 }

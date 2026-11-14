@@ -2,7 +2,7 @@
 #include <array>
 namespace anks {
 struct RackField {const char*id;const char*label;float min,max,step,initial;int group;float skew;};
-inline constexpr std::array<RackField,51> rackFields{{
+inline constexpr std::array<RackField,70> rackFields{{
  {"on","Actif",0.0f,1.0f,1.0f,1.0f,0,1.0f},
  {"mix","Melange",0.0f,1.0f,0.001f,0.8f,0,1.0f},
  {"level","Sortie dB",-24.0f,12.0f,0.1f,0.0f,0,1.0f},
@@ -54,5 +54,24 @@ inline constexpr std::array<RackField,51> rackFields{{
  {"rate","Vitesse Hz",0.05f,5.0f,0.01f,0.5f,6,1.0f},
  {"depth","Profondeur",0.0f,1.0f,0.001f,0.3f,6,1.0f},
  {"disto_mode","Type disto",0.f,2.f,1.f,0.f,3,1.f},
+ {"shift_hz","Decalage Hz",-2000.0f,2000.0f,0.1f,30.0f,7,1.0f},
+ {"freeze_hold","Capturer / maintenir",0.0f,1.0f,1.0f,0.0f,8,1.0f},
+ {"sm_cutoff","VCF frequence Hz",30.0f,18000.0f,1.0f,2400.0f,9,0.25f},
+ {"sm_resonance","VCF resonance",0.0f,1.0f,0.001f,0.25f,9,1.0f},
+ {"sm_drive","VCF drive dB",0.0f,24.0f,0.1f,0.0f,9,1.0f},
+ {"sm_highpass","VCF passe-haut",0.0f,1.0f,1.0f,0.0f,9,1.0f},
+ {"sm_attack","EG attaque s",0.001f,2.0f,0.001f,0.01f,9,0.4f},
+ {"sm_decay","EG declin s",0.005f,4.0f,0.001f,0.3f,9,0.4f},
+ {"sm_sustain","EG maintien",0.0f,1.0f,0.001f,0.7f,9,1.0f},
+ {"sm_release","EG relachement s",0.005f,8.0f,0.001f,0.5f,9,0.4f},
+ {"sm_drone","VCA ouvert / drone",0.0f,1.0f,1.0f,0.0f,9,1.0f},
+ {"sm_lfo_rate","LFO Hz",0.02f,30.0f,0.01f,0.5f,9,0.4f},
+ {"sm_lfo_shape","LFO triangle",0.0f,1.0f,1.0f,0.0f,9,1.0f},
+ {"sm_patch1_source","Patch 1 source : 0 off 1 LFO 2 EG 3 suivi",0.0f,3.0f,1.0f,2.0f,9,1.0f},
+ {"sm_patch1_dest","Patch 1 destination : 0 VCF 1 VCA",0.0f,1.0f,1.0f,0.0f,9,1.0f},
+ {"sm_patch1_amount","Patch 1 dosage",-1.0f,1.0f,0.001f,0.4f,9,1.0f},
+ {"sm_patch2_source","Patch 2 source : 0 off 1 LFO 2 EG 3 suivi",0.0f,3.0f,1.0f,1.0f,9,1.0f},
+ {"sm_patch2_dest","Patch 2 destination : 0 VCF 1 VCA",0.0f,1.0f,1.0f,0.0f,9,1.0f},
+ {"sm_patch2_amount","Patch 2 dosage",-1.0f,1.0f,0.001f,0.1f,9,1.0f},
 }};
 }

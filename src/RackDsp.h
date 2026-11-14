@@ -1,5 +1,6 @@
 #pragma once
 #include "RackTypes.h"
+#include "CreativeDsp.h"
 namespace anks {
 // Storage is allocated by prepare; reset invalidates history without clearing large rings.
 class History {
@@ -31,14 +32,15 @@ struct PeakEq {
 class RackModule {
  struct Grain {double read=0,start=0,end=1,step=1;int age=0,length=1;bool active=false;};
 public:
- void prepare(double sr,bool right=false){rightChannel=right;rate=sr;slew=1-std::exp(-1/(sr*.01));for(auto&r:body)r.prepare(sr);history.prepare(size_t(sr*2.1)+8);reset();}
- void reset(){for(auto&r:body)r.reset();for(auto&e:eq)e.reset();history.reset();for(auto&g:grains)g.active=false;sv1=sv2=toneState=0;phase=0;spawn=0;firstGrain=true;random=0x9182ab31u;}
+ void setGate(bool gate){semi.setGate(gate);}
+ void prepare(double sr,bool right=false){shifter.prepare(sr);freeze.prepare();semi.prepare(sr);rightChannel=right;rate=sr;slew=1-std::exp(-1/(sr*.01));for(auto&r:body)r.prepare(sr);history.prepare(size_t(sr*2.1)+8);reset();}
+ void reset(){shifter.reset();if(params.type==8)freeze.reset();semi.reset();for(auto&r:body)r.reset();for(auto&e:eq)e.reset();history.reset();for(auto&g:grains)g.active=false;sv1=sv2=toneState=0;phase=0;spawn=0;firstGrain=true;random=0x9182ab31u;}
  void configure(const RackParameters&p,double hz,double bpm,double ppq,bool first=false,bool updateClock=true){
-  if(p.type!=params.type){reset();first=true;}
+  if(p.type!=params.type){reset();if(p.type==8)freeze.reset();first=true;}
   bool tune=first;for(size_t i=0;i<2;++i){auto&a=p.body[i];auto&b=params.body[i];tune=tune||a.decay!=b.decay||a.brightness!=b.brightness||a.position!=b.position||a.detune!=b.detune||a.odd!=b.odd;}
   if(hz!=frequency)tune=true;
   const bool updateEq=first||p.type!=params.type||p.filterMode!=params.filterMode||p.eqFrequency!=params.eqFrequency||p.eqGain!=params.eqGain||p.eqQ!=params.eqQ;
-  frequency=hz;params=p;
+  frequency=hz;params=p;if(p.type==9)semi.configure(p);
   if(tune&&p.type==1)for(size_t i=0;i<2;++i){const auto&b=p.body[i];BodyParameters bp;bp.decay=b.decay;bp.brightness=b.brightness;bp.position=b.position;bp.detune=b.detune;bp.odd=b.odd;body[i].tune(hz*std::exp2(b.detune/1200),bp);}
   if(updateEq&&p.type==2&&p.filterMode==4)for(size_t i=0;i<4;++i)eq[i].configure(rate,p.eqFrequency[i],p.eqGain[i],p.eqQ[i]);
   driveTarget=dbGain(p.drive);levelTarget=dbGain(p.level);toneCoefficient=1-std::exp(-2*pi*std::clamp(p.tone,30.,rate*.45)/rate);for(size_t i=0;i<2;++i){bodyLevelTarget[i]=dbGain(p.body[i].level);bodyEnabledTarget[i]=p.body[i].on?1:0;if(first){bodyLevel[i]=bodyLevelTarget[i];bodyEnabled[i]=bodyEnabledTarget[i];}}
@@ -48,7 +50,7 @@ public:
  double next(double x){
   if(params.type==0)return x;
   wet+=slew*(target-wet);mix+=slew*(params.mix-mix);balance+=slew*(params.balance-balance);cutoff+=slew*(params.cutoff-cutoff);drive+=slew*(driveTarget-drive);level+=slew*(levelTarget-level);
-  double y=x;
+  double y=x,alignedDry=x;
   switch(static_cast<ModuleType>(params.type)){
    case ModuleType::Empty:break;
    case ModuleType::Resonator:{for(size_t i=0;i<2;++i){bodyLevel[i]+=slew*(bodyLevelTarget[i]-bodyLevel[i]);bodyEnabled[i]+=slew*(bodyEnabledTarget[i]-bodyEnabled[i]);}double a=body[0].next(x)*bodyLevel[0],b=body[1].next(x)*bodyLevel[1];double wa=bodyEnabled[0]*(1-balance*bodyEnabled[1]),wb=bodyEnabled[1]*(1-(1-balance)*bodyEnabled[0]);double active=bodyEnabled[0]+bodyEnabled[1]-bodyEnabled[0]*bodyEnabled[1];y=wa*a+wb*b+(1-active)*x;break;}
@@ -63,6 +65,9 @@ public:
     phase+=params.rate/rate;phase-=std::floor(phase);history.push(x);y=0;
     for(int tap=0;tap<3;++tap){double angle=2*pi*phase+tap*2*pi/3+(rightChannel?pi*.5:0);double seconds=.014+tap*.004+(.001+.010*params.depth)*std::sin(angle);y+=history.behind(rate*seconds)/3;}
     break;}
+   case ModuleType::FrequencyShifter:y=shifter.next(x,params.shiftHz);alignedDry=shifter.dry();break;
+   case ModuleType::SpectralFreeze:y=freeze.next(x,params.freezeHold);alignedDry=freeze.dry();break;
+   case ModuleType::SemiModular:y=semi.next(x,params);break;
    case ModuleType::Granular:{
     history.push(x);
     // Capture real recorded fragments. Never start a grain in negative/unwritten history.
@@ -91,6 +96,7 @@ public:
     y/=std::max(1.,weight);break;}
 
   }
+  if(params.type==7||params.type==8)return std::clamp(x+wet*(level*(alignedDry+mix*(y-alignedDry))-x),-16.,16.);
   // Bound interstage extremes before the next module, never a feedback network.
   return std::clamp(x+wet*(mix*(y-x)+(level-1)*(x+mix*(y-x))),-16.,16.);
  }
@@ -98,6 +104,7 @@ private:
  double rand01(){random^=random<<13;random^=random>>17;random^=random<<5;return random/4294967295.;}
  double driveTarget=2,levelTarget=1,toneCoefficient=.5;std::array<double,2>bodyLevel{{1,1}},bodyLevelTarget{{1,1}},bodyEnabled{{1,1}},bodyEnabledTarget{{1,1}};
  bool rightChannel=false,firstGrain=true;
+ FrequencyShift shifter;SpectralHold freeze;SemiModular semi;
  RackParameters params;std::array<Resonator,2>body;std::array<PeakEq,4>eq;History history;std::array<Grain,16>grains{};
  double rate=48000,slew=.001,frequency=0,wet=1,target=1,mix=.8,balance=.5,cutoff=6000,drive=2,level=1,delay=12000,sv1=0,sv2=0,toneState=0,phase=0,speed=.5,spawn=0;uint32_t random=0x9182ab31u;
 };
@@ -107,6 +114,7 @@ namespace anks {
 // Independent channel states preserve stereo from a chorus through the later blocks.
 class StereoRackModule {
 public:
+ void setGate(bool gate){left.setGate(gate);right.setGate(gate);}
  void prepare(double sr){left.prepare(sr);right.prepare(sr,true);}
  void reset(){left.reset();right.reset();}
  void configure(const RackParameters&p,double hz,double bpm,double ppq,bool first=false,bool clock=true){left.configure(p,hz,bpm,ppq,first,clock);right.configure(p,hz,bpm,ppq,first,clock);}
@@ -118,6 +126,9 @@ inline double rackTailSeconds(const RackConfig&r){
   if(p.type==5){double repeats=p.feedback<.001?1:1+std::log(1e-5)/std::log(std::min(.95,p.feedback));seconds+=std::min(30.,p.time*repeats);}
   else if(p.type==4)seconds+=p.position+p.grainSize+.05;
   else if(p.type==6)seconds+=.08;
+  else if(p.type==7)seconds+=.01;
+  else if(p.type==8)seconds+=p.freezeHold?30.:.05;
+  else if(p.type==9)seconds+=p.smRelease;
   else if(p.type==1)for(auto&b:p.body)if(b.on)seconds=std::max(seconds,b.decay);
  }return std::min(30.,seconds);
 }

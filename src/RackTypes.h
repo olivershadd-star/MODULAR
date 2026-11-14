@@ -4,7 +4,7 @@
 namespace anks {
 struct Stereo {double left=0,right=0;double mono()const{return (left+right)*.5;}};
 
-enum class ModuleType:int {Empty,Resonator,Filter,Saturation,Granular,Delay,Chorus};
+enum class ModuleType:int {Empty,Resonator,Filter,Saturation,Granular,Delay,Chorus,FrequencyShifter,SpectralFreeze,SemiModular};
 struct RackBody {double decay=1.5,brightness=.8,position=.2,detune=0,level=0;bool on=true,odd=false;};
 struct RackParameters {
  int type=0,filterMode=0,lfoShape=0,distoMode=0;bool on=true,lfoSync=false;
@@ -12,6 +12,11 @@ struct RackParameters {
  double time=.25,feedback=.3,rate=.5,depth=.3;
  double grainSize=.08,density=20,position=.3,scatter=.1,pitch=0;
  double lfoRate=.5,lfoDepth=0,lfoBeats=4;
+ double shiftHz=30;bool freezeHold=false;
+ double smCutoff=2400,smResonance=.25,smDrive=0,smAttack=.01,smDecay=.3,smSustain=.7,smRelease=.5,smLfoRate=.5;
+ bool smHighpass=false,smDrone=false,smLfoShape=false;
+ std::array<int,2>smSource{{2,1}},smDestination{{0,0}};
+ std::array<double,2>smAmount{{.4,.1}};
  std::array<RackBody,2>body{};
  std::array<double,4>eqFrequency{{150,650,2500,8000}},eqGain{},eqQ{{.707,.707,.707,.707}};
 };

@@ -1,7 +1,7 @@
-ANKS RESONANT LAB V1.2 ALPHA 1 — WINDOWS x64
+ANKS RESONANT LAB V1.3 ALPHA 1 — WINDOWS x64
 
 Compiler les sources avec le workflow VST3 Windows (voir GITHUB_DEMARRAGE.txt).
-Dans l'artifact ANKS-Resonant-Lab-V1-2-Alpha-Windows, extraire le ZIP Windows.
+Dans l'artifact ANKS-Resonant-Lab-V1-3-Alpha-Windows, extraire le ZIP Windows.
 
 1. Fermer Ableton et les autres hotes.
 2. Sauvegarder les projets V0.3/V1 alpha. Cette V1 conserve le meme identifiant Arlc :

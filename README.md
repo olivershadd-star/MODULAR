@@ -1,10 +1,22 @@
-# ANKS Resonant Lab 1.2 alpha 3
+# ANKS Resonant Lab 1.3 alpha 1
 
 Instrument C++ / JUCE 8.0.6 — VST3 et application autonome Windows x64. Auteur : ANKS.
 
-Cette révision conserve uniquement l’interface rack et retire la case de bascule vers l’ancienne disposition. Les anciens états restent lisibles : un bouton de migration vers le rack apparaît uniquement si un ancien moteur est chargé. Les lectures de l’historique granulaire évitent les modulos entiers répétés, et les coefficients EQ sont recalculés seulement lorsque nécessaire.
+Cette mouture conserve la banque de 36 excitations et ajoute trois traitements réordonnables : **Semi-modulaire**, **Décalage de fréquence** et **Freeze spectral**. La source reste unique, en amont du rack : WAV/factory ou onde interne (impact, sinus, triangle, dent de scie, carré). Aucun de ces traitements n’ajoute automatiquement un oscillateur.
 
-Cette version corrige les effets de la V1.1 et remplace son rack défilant par une vue compacte à knobs. Les archives précédentes sont conservées séparément.
+### Semi-modulaire
+
+Inspiré de fonctions de synthèse semi-modulaire de type Mother-32, il traite le signal entrant. VCF 24 dB/octave passe-bas ou passe-haut, résonance, drive, VCA, ADSR et LFO sinus/triangle. Ce n’est pas une émulation du circuit Moog. Deux patches dans `…` permettent de choisir **Aucune / LFO / Enveloppe / Suivi entrée** vers **VCF / VCA**, avec dosage bipolaire. Par défaut : enveloppe → VCF, LFO → VCF. Le VCA suit l’enveloppe MIDI ; « VCA ouvert » laisse passer le son sans ce contrôle d’amplitude. Attaque, déclin, filtre, résonance, LFO et dosage du patch 1 sont en vue principale ; maintien, relâchement, drive et routage complet sont dans `…`. Les patches VCF couvrent ±5 octaves ; les patches VCA ajoutent ou retirent de l’amplitude bornée entre 0 et 1.
+
+### Décalage de fréquence
+
+Déplacement signé en Hz, indépendant d’une transposition musicale. Produit battements et timbres inharmoniques. Réglage ±2000 Hz, Mix et Sortie. Traitement stéréo indépendant, avec un filtre de Hilbert FIR de 127 points ; séparation des bandes moins précise tout en bas du spectre. Retard interne de 63 échantillons, compensé entre les branches dry/wet du module.
+
+### Freeze spectral
+
+Le bouton **Maintenir** capture le spectre courant après la mise en route de l’analyse, puis le prolonge même si l’entrée se tait. Décocher retourne à l’analyse en direct ; décocher puis recocher capture un autre instant. FFT 1024 points, pas de 256, recouvrement de Hann et progression de phase. Retard interne 1024 échantillons (21,3 ms à 48 kHz), dry/wet alignés. Capture et relâchement évoluent sur les fenêtres d’analyse. Une capture du silence reste silencieuse. Le maintien respecte la limite de queue de 30 secondes après extinction de l’enveloppe source et peut être coupé par un vol de voix.
+
+Les trois traitements fonctionnent à n’importe quelle position et conservent la stéréo. Les effets à retard sont des transformations créatives dans une architecture par voix : la latence globale hôte reste déclarée nulle, sans compensation automatique du trajet complet. Éviter de les comparer à une chaîne parallèle sans alignement.
 
 ## Banque d’excitations
 
@@ -27,7 +39,7 @@ Glisser l'en-tête `::` d'un cadre sur un autre échange les instances avec leur
 
 Le double corps partage les cinq commandes Résonance, Brillance, Position, Accord et Niveau entre **Corps 1 / Corps 2 / 1+2 liés**. Passer en lié ne copie pas les valeurs : le prochain geste applique la même valeur aux deux corps. Leurs automations restent distinctes. La balance donne la part du corps 2 (0 % = corps 1 seul, 100 % = corps 2 seul).
 
-Dans Ableton : **Configure → manipuler les knobs → assigner aux macros du rack → MIDI Map du contrôleur**. Les commandes principales et secondaires adressent les vrais paramètres du processeur; l'éditeur fournit aussi leur index au wrapper VST3. Les anciens identifiants et leur ordre sont conservés; seuls quatre paramètres de mode de distorsion sont ajoutés à la fin.
+Dans Ableton : **Configure → manipuler les knobs → assigner aux macros du rack → MIDI Map du contrôleur**. Les commandes principales et secondaires adressent les vrais paramètres du processeur; l'éditeur fournit aussi leur index au wrapper VST3. Les anciens identifiants et leur ordre sont conservés; les nouveaux contrôles sont ajoutés après tous les paramètres 1.2, modes de distorsion compris. Les identifiants et les indices des anciens contrôles sont conservés. Les listes de types et d’ondes sont étendues : vérifier les automations hôte enregistrées en valeurs normalisées lors d’un changement de version.
 
 Une automation `m1_…` suit toujours l'instance 1 après déplacement. Changer de type ne réaffecte pas cette automation à une autre fonction; les réglages inactifs restent mémorisés. Les réglages communs Mix/Level et la couleur partagée saturation/delay restent communs à l'instance. Pas d'undo dans cette alpha.
 
@@ -41,6 +53,9 @@ Une automation `m1_…` suit toujours l'instance 1 après déplacement. Changer 
 | Granulaire | Fragments du signal entrant : taille, densité, recul, dispersion, hauteur et mélange. Jusqu'à 16 grains par canal et par voix. |
 | Delay | Temps en secondes, feedback, couleur, mélange et niveau. Répétitions conservées après note-off. |
 | Chorus | Trois voix retardées et modulées par canal, phases gauche/droite distinctes; vitesse, profondeur, mélange et niveau. |
+| Décalage de fréquence | Déplacement signé en Hz, mélange et niveau. |
+| Freeze spectral | Capture / maintien du spectre, mélange et niveau. |
+| Semi-modulaire | VCF, VCA, ADSR, LFO et deux routes de modulation. |
 
 Le LFO concerne le filtre à variable d'état, pas les bandes de l'EQ. En mode EQ, les commandes LFO sont masquées. Les boutons Sync/Triangle sont directement accessibles dans le filtre. Une vitesse synchronisée s'exprime en temps et suit BPM/PPQ; le mode Hz reste libre.
 
@@ -63,7 +78,7 @@ Le moteur classique est conservé pour les anciens projets V0.3/V1 sans rack. Le
 - **Chaîne / .ankschain** : instances, ordre, modulations, entrée/sortie; conserve la source, la racine, la boucle, l'enveloppe et le pattern courants.
 - **Module A/B/C/D / .anksmod** : type et réglages chargés dans l'instance qui occupe la destination sélectionnée.
 
-Les recettes V1.1 sont migrées avec le mode de distorsion doux par défaut. Les nouveaux fichiers de recette portent le schéma 2; l'état complet garde la racine ANKS3 et le schéma de suite 3. Le chargement d'un son ou d'un preset coupe les voix courantes. Un séquenceur interne actif redémarre au premier pas. Ajouter l'extension demandée lors de la sauvegarde.
+Les recettes V1.1 sont migrées avec le mode de distorsion doux par défaut. Les nouveaux fichiers de recette portent le schéma 3 (lecture des schémas 1/2 avec valeurs par défaut pour les nouveaux contrôles); l'état complet garde la racine ANKS3 et le schéma de suite 3. Le chargement d'un son ou d'un preset coupe les voix courantes. Un séquenceur interne actif redémarre au premier pas. Ajouter l'extension demandée lors de la sauvegarde.
 
 Le dossier Excitations reste dans les **sources de compilation** pour construire les ressources; il n'est plus copié dans l'archive Windows à installer.
 
@@ -75,15 +90,15 @@ Hote suit le transport d'Ableton. Interne utilise PLAY et le tempo réglé dans 
 
 ## Compilation et installation
 
-Même procédure : ZIP de sources → extraire → déposer le contenu dans GitHub → **Actions → VST3 Windows**. Télécharger l'artifact **ANKS-Resonant-Lab-V1-2-Alpha-Windows**, puis extraire son ZIP Windows. Il contient le VST3 et Standalone, avec les WAV compilés dedans.
+Même procédure : ZIP de sources → extraire → déposer le contenu dans GitHub → **Actions → VST3 Windows**. Télécharger l'artifact **ANKS-Resonant-Lab-V1-3-Alpha-Windows**, puis extraire son ZIP Windows. Il contient le VST3 et Standalone, avec les WAV compilés dedans.
 
-Si le workflow manque, créer `.github/workflows/build-vst3.yml` et copier le fichier visible `build-vst3.yml`. Le script utilise le commit officiel JUCE 8.0.6 fixé, construit les deux formats et lance six séries de tests. En local : Visual Studio C++, SDK Windows et CMake, puis Construire_Windows.ps1.
+Si le workflow manque, créer `.github/workflows/build-vst3.yml` et copier le fichier visible `build-vst3.yml`. Le script utilise le commit officiel JUCE 8.0.6 fixé, construit les deux formats et lance huit séries de tests, dont le contrôle de la banque si Python est disponible. En local : Visual Studio C++, SDK Windows et CMake, puis Construire_Windows.ps1.
 
 Identité VST3 conservée `Anks/Arlc`. Ne pas scanner simultanément plusieurs versions de même identifiant; conserver les anciennes archives et une copie des projets. Un ancien chemin de plugin peut demander une nouvelle sélection dans Curve Pilot.
 
 ## Limites
 
-16 voix; les queues peuvent être coupées lors d'un vol de voix, d'un panic, d'un changement de source ou de type. Budget de queue borné à 30 s après l'enveloppe, avec fondu final; les très longs feedbacks ne sont pas infinis. Un changement d'ordre utilise une atténuation de 4 ms puis une remontée de 4 ms. Le nombre de voix, l'historique stéréo et la fréquence d'échantillonnage influencent CPU/RAM; environ 90 Mo de stockage DSP à 48 kHz, jusqu'à 250 Mo à 192 kHz, hors sources/framework/hôte. Les buffers sont alloués à la préparation, pas par échantillon.
+16 voix; les queues peuvent être coupées lors d'un vol de voix, d'un panic, d'un changement de source ou de type. Budget de queue borné à 30 s après l'enveloppe, avec fondu final; les très longs feedbacks ne sont pas infinis. Un changement d'ordre utilise une atténuation de 4 ms puis une remontée de 4 ms. Le nombre de voix, l'historique stéréo et la fréquence d'échantillonnage influencent CPU/RAM; environ 100 Mo de stockage DSP à 48 kHz, jusqu’à 265 Mo à 192 kHz, hors sources/framework/hôte. Les buffers sont alloués à la préparation, pas par échantillon.
 
 Le granulaire live est causal : son recul se limite à ce qui a effectivement été capturé. Il n'a pas encore de gel ni de stretch indépendant. Le delay n'est pas encore synchronisé au tempo. Pas d'export WAV, de découpe début/fin, ni de catalogue avec préécoute dans cette version. L'oscillation simple, la transposition interpolée et la distorsion sans suréchantillonnage peuvent produire de l'aliasing.
 

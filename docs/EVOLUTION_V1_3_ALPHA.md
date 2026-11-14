@@ -1,0 +1,11 @@
+# 1.3 alpha 1 — traitements créatifs en chaîne
+
+Trois nouveaux types sont ajoutés après Chorus, sans changer les numéros des anciens : 7 décalage de fréquence, 8 freeze spectral, 9 semi-modulaire. Les 19 nouveaux champs par instance sont ajoutés après les 4 modes de distorsion 1.2, sans déplacer les anciens paramètres. Recettes schéma 3, lecture des schémas 1 et 2 ; état complet ANKS3 conservé.
+
+Le semi-modulaire est un traitement du signal entrant, sans source audio intégrée. ADSR commandée par la propriété held de chaque voix MIDI (sustain compris), VCA ouvert optionnel, VCF 24 dB passe-bas/passe-haut, drive et deux routes de modulation. Une enveloppe au début de la chaîne peut toujours raccourcir l’excitation avant le semi-modulaire : augmenter le relâchement global si nécessaire.
+
+Implémentations DSP originales dans CreativeDsp.h : Hilbert FIR à fenêtre Blackman, modulation en quadrature ; STFT radix-2 avec maintien des magnitudes et incréments de phase ; deux sections de filtre à variable d’état avec enveloppe et LFO. Aucun code tiers Airwindows/Signalsmith/Valley/BYOD repris pour ces ajouts. Toutes les mémoires sont fixes ou préparées avant lecture.
+
+Validation : tests créatifs de déplacement signé et rejet de bande miroir, reconstruction STFT en direct, maintien après silence, relâchement, remise à zéro, réponse du VCF, absence d’oscillateur imposé, enveloppe, ordre et invariance de callback. Régressions des quatre suites DSP précédentes et des 36 WAV. Tests du processeur JUCE ajoutés pour les trois types, les raccordements sauvegardés et une recette 1.2 sans nouveaux champs. Le workflow Windows exécute ces tests avant de produire VST3 et Standalone.
+
+Limites : le freeze est plus coûteux que les effets simples et sa capture porte sur environ 21 ms à 48 kHz ; il ne s’agit pas d’un enregistreur de longue boucle. La séparation Hilbert diminue aux très basses fréquences. Retards de 63 et 1024 échantillons internes aux nouveaux effets, dry/wet alignés, sans compensation hôte du trajet complet. Les listes de choix étendues peuvent modifier l’interprétation des anciennes automations normalisées ; les valeurs brutes des presets et les identifiants restent conservés.

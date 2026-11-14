@@ -77,14 +77,14 @@ struct Voice{
   double x=0;
   if(params.useSample&&sample&&!sample->mono.empty()){
    size_t len=sample->mono.size();if(cursor<double(len)){size_t i=size_t(cursor),j=i+1<len?i+1:(params.loop?size_t(0):i);x=sample->mono[i]+(sample->mono[j]-sample->mono[i])*(cursor-double(i));cursor+=step;if(params.loop&&cursor>=double(len))cursor=std::fmod(cursor,double(len));}
-  }else if(params.waveform>0){x=.25*(params.waveform==1?std::sin(2*pi*oscPhase):params.waveform==2?4*std::abs(oscPhase-.5)-1:2*oscPhase-1);oscPhase+=std::min(.45,midiHz(note+bend)/rate);oscPhase-=std::floor(oscPhase);}
+  }else if(params.waveform>0){x=.25*(params.waveform==1?std::sin(2*pi*oscPhase):params.waveform==2?4*std::abs(oscPhase-.5)-1:params.waveform==3?2*oscPhase-1:(oscPhase<.5?1:-1));oscPhase+=std::min(.45,midiHz(note+bend)/rate);oscPhase-=std::floor(oscPhase);}
   else{random^=random<<13;random^=random>>17;random^=random<<5;if(age<uint64_t(rate*0.008))x=(double(random)/4294967295.0*2-1)*std::exp(-double(age)/(rate*0.002))*0.5;}
   ++age;
   input+=slew*(inputTarget-input);mix+=slew*(params.bodyMix-mix);balance+=slew*(params.balance-balance);drive+=slew*(driveTarget-drive);
   filterWet+=slew*((params.filterOn?1.0:0.0)-filterWet);driveWet+=slew*((params.driveOn?1.0:0.0)-driveWet);bodyWet+=slew*((params.bodiesOn?1.0:0.0)-bodyWet);
   filterCoefficient+=slew*(filterTarget-filterCoefficient);
   x*=input*velocity;
-  if(params.rack.enabled){double exciterEnvelope=envelope>=.00001?envelope:0;Stereo signal{x*exciterEnvelope,x*exciterEnvelope};for(int id:rackOrders()[size_t(std::clamp(params.rack.order,0,23))])signal=rackModules[size_t(id)].next(signal);if(tailAge){double remaining=rate*tailSeconds-double(tailAge);double fade=std::clamp(remaining/(rate*.02),0.,1.);signal.left*=fade;signal.right*=fade;}return signal;}
+  if(params.rack.enabled){double exciterEnvelope=envelope>=.00001?envelope:0;Stereo signal{x*exciterEnvelope,x*exciterEnvelope};for(int id:rackOrders()[size_t(std::clamp(params.rack.order,0,23))]){rackModules[size_t(id)].setGate(held);signal=rackModules[size_t(id)].next(signal);}if(tailAge){double remaining=rate*tailSeconds-double(tailAge);double fade=std::clamp(remaining/(rate*.02),0.,1.);signal.left*=fade;signal.right*=fade;}return signal;}
   else for(int module:routes[size_t(std::clamp(params.route,0,5))]){
    if(module==0){filterState+=filterCoefficient*(x-filterState);x+=filterWet*(filterState-x);}
    else if(module==1){double y=std::tanh(x*drive);x+=driveWet*(y-x);}

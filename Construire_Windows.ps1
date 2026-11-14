@@ -15,7 +15,7 @@ if (-not (Test-Path (Join-Path $juce 'CMakeLists.txt'))) {
 }
 cmake -S . -B build-win -A x64 -DANKS_BUILD_PLUGIN=ON "-DANKS_JUCE_PATH=$juce"
 if ($LASTEXITCODE -ne 0) { throw 'Configuration echouee. Verifier Visual Studio C++ et le SDK Windows.' }
-cmake --build build-win --config Release --target test_core test_effects test_rack test_sequencer test_audio_io test_plugin ANKSResonantLab_VST3 ANKSResonantLab_Standalone
+cmake --build build-win --config Release --target test_core test_creative test_effects test_rack test_sequencer test_audio_io test_plugin ANKSResonantLab_VST3 ANKSResonantLab_Standalone
 if ($LASTEXITCODE -ne 0) { throw 'Compilation echouee.' }
 ctest --test-dir build-win -C Release --output-on-failure
 if ($LASTEXITCODE -ne 0) { throw 'Les tests ont echoue.' }
