@@ -30,20 +30,25 @@ struct PeakEq {
  double next(double x){double y=b0*x+z1;z1=b1*x-a1*y+z2;z2=b2*x-a2*y;return y;}
 };
 class RackModule {
- struct Grain {double read=0,start=0,end=1,step=1;int age=0,length=1;bool active=false;};
+ struct Grain {double read=0,start=0,end=1,step=1,attackDenom=1,releaseDenom=1,span=1;int age=0,length=1;bool active=false;};
 public:
  void setGate(bool gate){semi.setGate(gate);}
  void prepare(double sr,bool right=false){shifter.prepare(sr);freeze.prepare();semi.prepare(sr);rightChannel=right;rate=sr;slew=1-std::exp(-1/(sr*.01));for(auto&r:body)r.prepare(sr);history.prepare(size_t(sr*2.1)+8);reset();}
- void reset(){shifter.reset();if(params.type==8)freeze.reset();semi.reset();for(auto&r:body)r.reset();for(auto&e:eq)e.reset();history.reset();for(auto&g:grains)g.active=false;sv1=sv2=toneState=0;phase=0;spawn=0;firstGrain=true;random=0x9182ab31u;}
- void configure(const RackParameters&p,double hz,double bpm,double ppq,bool first=false,bool updateClock=true){
-  if(p.type!=params.type){reset();if(p.type==8)freeze.reset();first=true;}
-  bool tune=first;for(size_t i=0;i<2;++i){auto&a=p.body[i];auto&b=params.body[i];tune=tune||a.decay!=b.decay||a.brightness!=b.brightness||a.position!=b.position||a.detune!=b.detune||a.odd!=b.odd;}
-  if(hz!=frequency)tune=true;
+ void reset(){shifter.reset();if(params.type==8)freeze.reset();semi.reset();if(params.type==1)for(auto&r:body)r.reset();for(auto&e:eq)e.reset();history.reset();for(auto&g:grains)g.active=false;sv1=sv2=toneState=0;phase=0;spawn=0;firstGrain=true;random=0x9182ab31u;}
+ void configure(const RackParameters&p,double hz,double bpm,double ppq,bool first=false,bool updateClock=true,const RackModule*tuningReference=nullptr){
+  if(p.type!=params.type){reset();if(p.type==8)freeze.reset();if(p.type==1)for(auto&r:body)r.reset();first=true;}
+  std::array<bool,2>tuneBody{};
+  if(p.type==1)for(size_t i=0;i<2;++i){const auto&a=p.body[i];const auto&b=params.body[i];tuneBody[i]=first||hz!=frequency||a.decay!=b.decay||a.brightness!=b.brightness||a.position!=b.position||a.detune!=b.detune||a.odd!=b.odd;}
   const bool updateEq=first||p.type!=params.type||p.filterMode!=params.filterMode||p.eqFrequency!=params.eqFrequency||p.eqGain!=params.eqGain||p.eqQ!=params.eqQ;
-  frequency=hz;params=p;if(p.type==9)semi.configure(p);
-  if(tune&&p.type==1)for(size_t i=0;i<2;++i){const auto&b=p.body[i];BodyParameters bp;bp.decay=b.decay;bp.brightness=b.brightness;bp.position=b.position;bp.detune=b.detune;bp.odd=b.odd;body[i].tune(hz*std::exp2(b.detune/1200),bp);}
+  frequency=hz;
+  if(first||p.drive!=params.drive)driveTarget=dbGain(p.drive);
+  if(first||p.level!=params.level)levelTarget=dbGain(p.level);
+  if(first||p.tone!=params.tone)toneCoefficient=1-std::exp(-2*pi*std::clamp(p.tone,30.,rate*.45)/rate);
+  for(size_t i=0;i<2;++i)if(first||p.body[i].level!=params.body[i].level)bodyLevelTarget[i]=dbGain(p.body[i].level);
+  params=p;if(p.type==9)semi.configure(p);
+  if(p.type==1)for(size_t i=0;i<2;++i)if(tuneBody[i]){if(tuningReference){body[i].adoptTuning(tuningReference->body[i]);continue;}const auto&b=p.body[i];BodyParameters bp;bp.decay=b.decay;bp.brightness=b.brightness;bp.position=b.position;bp.detune=b.detune;bp.odd=b.odd;body[i].tune(hz*std::exp2(b.detune/1200),bp);}
   if(updateEq&&p.type==2&&p.filterMode==4)for(size_t i=0;i<4;++i)eq[i].configure(rate,p.eqFrequency[i],p.eqGain[i],p.eqQ[i]);
-  driveTarget=dbGain(p.drive);levelTarget=dbGain(p.level);toneCoefficient=1-std::exp(-2*pi*std::clamp(p.tone,30.,rate*.45)/rate);for(size_t i=0;i<2;++i){bodyLevelTarget[i]=dbGain(p.body[i].level);bodyEnabledTarget[i]=p.body[i].on?1:0;if(first){bodyLevel[i]=bodyLevelTarget[i];bodyEnabled[i]=bodyEnabledTarget[i];}}
+  for(size_t i=0;i<2;++i){bodyEnabledTarget[i]=p.body[i].on?1:0;if(first){bodyLevel[i]=bodyLevelTarget[i];bodyEnabled[i]=bodyEnabledTarget[i];}}
   speed=p.lfoSync?bpm/(60*p.lfoBeats):p.lfoRate;if(p.lfoSync&&updateClock)phase=ppq/p.lfoBeats-std::floor(ppq/p.lfoBeats);
   target=p.on&&p.type!=0?1:0;if(first){wet=target;mix=p.mix;balance=p.balance;cutoff=p.cutoff;drive=dbGain(p.drive);level=dbGain(p.level);delay=p.time*rate;}
  }
@@ -82,15 +87,14 @@ public:
       double desired=latest-params.position*rate+jitter;
       // At startup the requested lookback is clamped to the material actually available.
       g.start=std::clamp(desired-g.length*g.step,oldest,std::max(oldest,latest-2));
-      g.end=std::min(latest,g.start+g.length*g.step);g.read=g.start;break;
+      g.end=std::min(latest,g.start+g.length*g.step);g.read=g.start;g.span=std::max(1.,g.end-g.start);g.attackDenom=std::max(1.,std::min(rate*.001,g.length*.1));g.releaseDenom=std::max(1.,g.length*.25);break;
      }
     }
     y=0;double weight=0;
     for(auto&g:grains)if(g.active){
-     double attack=std::min(rate*.001,g.length*.1),release=std::max(1.,g.length*.25);
-     double w=std::min(1.,double(g.age+1)/std::max(1.,attack))*std::min(1.,double(g.length-g.age)/release);
+     double w=std::min(1.,double(g.age+1)/g.attackDenom)*std::min(1.,double(g.length-g.age)/g.releaseDenom);
      y+=history.absolute(g.read)*w;weight+=w;
-     g.read+=g.step;double span=std::max(1.,g.end-g.start);if(g.read>=g.end)g.read=g.start+std::fmod(g.read-g.start,span);
+     g.read+=g.step;if(g.read>=g.end)g.read=g.start+std::fmod(g.read-g.start,g.span);
      if(++g.age>=g.length)g.active=false;
     }
     y/=std::max(1.,weight);break;}
@@ -117,7 +121,7 @@ public:
  void setGate(bool gate){left.setGate(gate);right.setGate(gate);}
  void prepare(double sr){left.prepare(sr);right.prepare(sr,true);}
  void reset(){left.reset();right.reset();}
- void configure(const RackParameters&p,double hz,double bpm,double ppq,bool first=false,bool clock=true){left.configure(p,hz,bpm,ppq,first,clock);right.configure(p,hz,bpm,ppq,first,clock);}
+ void configure(const RackParameters&p,double hz,double bpm,double ppq,bool first=false,bool clock=true){left.configure(p,hz,bpm,ppq,first,clock);right.configure(p,hz,bpm,ppq,first,clock,&left);}
  Stereo next(Stereo x){return {left.next(x.left),right.next(x.right)};}
 private: RackModule left,right;
 };

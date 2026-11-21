@@ -20,6 +20,7 @@ struct Parameters{
  std::array<BodyParameters,2> body{};
  double inputDb=0,outputDb=0,bodyMix=0.8,balance=0.5,cutoff=6000,driveDb=6;
  double attack=0,release=0.3,root=60;
+ double preparedTail=-1; // Derived by Engine::snapshot, never a saved parameter.
  bool filterOn=false,driveOn=false,bodiesOn=true,useSample=false,loop=false;
  int route=0;int waveform=0;RackConfig rack;FmParameters fm;
 };
@@ -29,7 +30,7 @@ class Resonator{
 public:
  static constexpr int capacity=16384;
  void prepare(double sr){rate=sr;slew=1-std::exp(-1/(rate*0.015));reset();}
- void reset(){data.fill(0);write=0;low=0;first=true;}
+ void reset(){valid=0;write=0;low=0;first=true;}
  void tune(double hz,const BodyParameters&p){
   hz=std::clamp(hz,20.0,rate/8);targetBright=std::clamp(p.brightness,0.05,1.0);
   const double w=2*pi*hz/rate,q=1-targetBright;
@@ -40,15 +41,17 @@ public:
   targetPosition=std::clamp(p.position,0.02,0.48);polarity=p.odd?-1:1;
   if(first){delay=targetDelay;bright=targetBright;feedback=targetFeedback;position=targetPosition;first=false;}
  }
+ void adoptTuning(const Resonator&source){targetBright=source.targetBright;targetDelay=source.targetDelay;targetFeedback=source.targetFeedback;targetPosition=source.targetPosition;polarity=source.polarity;if(first){delay=targetDelay;bright=targetBright;feedback=targetFeedback;position=targetPosition;first=false;}}
  double next(double x){
   delay+=slew*(targetDelay-delay);bright+=slew*(targetBright-bright);feedback+=slew*(targetFeedback-feedback);position+=slew*(targetPosition-position);
   double y=read(delay);low=(1-bright)*low+bright*y;data[write]=x+polarity*feedback*low;
+  if(valid<capacity)++valid;
   double out=y-read(std::max(1.0,position*delay));write=(write+1)%capacity;return out;
  }
  double delaySamples()const{return targetDelay;}
 private:
- double read(double d)const{double p=double(write)-d;if(p<0)p+=capacity;int a=int(p),b=(a+1)%capacity;return data[a]+(data[b]-data[a])*(p-a);}
- std::array<double,capacity>data{};int write=0;bool first=true;
+ double read(double d)const{double p=double(write)-d;if(p<0)p+=capacity;int a=int(p),b=(a+1)%capacity;if(valid==capacity)return data[a]+(data[b]-data[a])*(p-a);double av=a<valid?data[a]:0,bv=b<valid?data[b]:0;return av+(bv-av)*(p-a);}
+ std::array<double,capacity>data{};int write=0,valid=0;bool first=true;
  double rate=48000,slew=0.001,low=0,polarity=1,delay=100,targetDelay=100,bright=0.8,targetBright=0.8,feedback=0.9,targetFeedback=0.9,position=0.2,targetPosition=0.2;
 };
 }
@@ -59,13 +62,13 @@ struct Voice{
  void prepare(double sr){rate=sr;fm.prepare(sr);slew=1-std::exp(-1/(rate*0.01));for(auto&r:bodies)r.prepare(sr);for(auto&r:rackModules)r.prepare(sr);active=false;}
  void start(int n,int ch,double vel,uint64_t order,const Parameters&p,const Sample*s,double pitch){
   note=n;channel=ch;velocity=vel;serial=order;sample=s;held=active=true;envelope=0;age=0;cursor=0;filterState=0;
-  random=uint32_t(n+1)*747796405u+uint32_t(ch);for(auto&r:bodies)r.reset();bend=pitch;params=p;
+  random=uint32_t(n+1)*747796405u+uint32_t(ch);for(auto&r:bodies)r.reset();bend=pitch;params=p;legacyPending=p.rack.enabled;legacyInitial=p.body;legacyNote=note+bend;
   input=dbGain(p.inputDb);mix=p.bodyMix;balance=p.balance;filterWet=p.filterOn?1:0;driveWet=p.driveOn?1:0;bodyWet=p.bodiesOn?1:0;drive=dbGain(p.driveDb);
   for(size_t i=0;i<2;++i){level[i]=dbGain(p.body[i].levelDb);enabled[i]=p.body[i].enabled?1:0;}
   fm.reset();fm.configure(midiHz(note+bend),p.fm,p.attack,p.release,velocity,true);tailAge=0;targets();filterCoefficient=filterTarget;refresh();oscPhase=0;for(size_t i=0;i<4;++i){rackModules[i].reset();rackModules[i].configure(p.rack.modules[i],midiHz(note+bend),p.rack.clockRunning?p.rack.bpm:0,p.rack.ppq,true);}
  }
  void apply(const Parameters&p){
-  bool dirty=!(params.body[0]==p.body[0])||!(params.body[1]==p.body[1]);params=p;targets();if(dirty)refresh();if(p.fm.enabled)fm.configure(midiHz(note+bend),p.fm,p.attack,p.release,velocity);
+  bool dirty=!(params.body[0]==p.body[0])||!(params.body[1]==p.body[1])||params.rack.enabled!=p.rack.enabled;params=p;targets();if(dirty)refresh();if(p.fm.enabled)fm.configure(midiHz(note+bend),p.fm,p.attack,p.release,velocity);
   step=(sample?sample->rate/rate:1)*std::exp2((note+bend-params.root)/12);
   if(p.rack.enabled)for(size_t i=0;i<4;++i)rackModules[i].configure(p.rack.modules[i],midiHz(note+bend),p.rack.clockRunning?p.rack.bpm:0,p.rack.ppq);
  }
@@ -79,7 +82,7 @@ struct Voice{
   if(params.fm.enabled)x=fm.next(held);
   else if(params.useSample&&sample&&!sample->mono.empty()){
    size_t len=sample->mono.size();if(cursor<double(len)){size_t i=size_t(cursor),j=i+1<len?i+1:(params.loop?size_t(0):i);x=sample->mono[i]+(sample->mono[j]-sample->mono[i])*(cursor-double(i));cursor+=step;if(params.loop&&cursor>=double(len))cursor=std::fmod(cursor,double(len));}
-  }else if(params.waveform>0){x=.25*(params.waveform==1?std::sin(2*pi*oscPhase):params.waveform==2?4*std::abs(oscPhase-.5)-1:params.waveform==3?2*oscPhase-1:(oscPhase<.5?1:-1));oscPhase+=std::min(.45,midiHz(note+bend)/rate);oscPhase-=std::floor(oscPhase);}
+  }else if(params.waveform>0){x=.25*(params.waveform==1?std::sin(2*pi*oscPhase):params.waveform==2?4*std::abs(oscPhase-.5)-1:params.waveform==3?2*oscPhase-1:(oscPhase<.5?1:-1));oscPhase+=oscIncrement;oscPhase-=std::floor(oscPhase);}
   else{random^=random<<13;random^=random>>17;random^=random<<5;if(age<uint64_t(rate*0.008))x=(double(random)/4294967295.0*2-1)*std::exp(-double(age)/(rate*0.002))*0.5;}
   ++age;
   input+=slew*(inputTarget-input);mix+=slew*(params.bodyMix-mix);balance+=slew*(params.balance-balance);drive+=slew*(driveTarget-drive);
@@ -103,9 +106,23 @@ struct Voice{
   return {x*(params.fm.enabled?1.:envelope),x*(params.fm.enabled?1.:envelope)};
  }
 private:
- void targets(){tailSeconds=rackTailSeconds(params.rack);inputTarget=dbGain(params.inputDb);driveTarget=dbGain(params.driveDb);for(size_t i=0;i<2;++i)levelTarget[i]=dbGain(params.body[i].levelDb);attackStep=params.attack<=0?1:1/(rate*params.attack);releaseFactor=std::exp(std::log(0.00001)/(rate*std::max(0.01,params.release)));filterTarget=1-std::exp(-2*pi*std::clamp(params.cutoff,30.0,rate*0.45)/rate);}
- void refresh(){for(size_t i=0;i<2;++i)bodies[i].tune(midiHz(note+bend+params.body[i].detune/100),params.body[i]);step=(sample?sample->rate/rate:1)*std::exp2((note+bend-params.root)/12);}
+ void targets(){
+  const bool changedRate=targetRate!=rate;
+  tailSeconds=params.preparedTail>=0?params.preparedTail:rackTailSeconds(params.rack);
+  if(params.inputDb!=cachedInput)inputTarget=dbGain(params.inputDb);
+  if(params.driveDb!=cachedDrive)driveTarget=dbGain(params.driveDb);
+  for(size_t i=0;i<2;++i)if(params.body[i].levelDb!=cachedLevel[i]){levelTarget[i]=dbGain(params.body[i].levelDb);cachedLevel[i]=params.body[i].levelDb;}
+  if(changedRate||params.attack!=cachedAttack)attackStep=params.attack<=0?1:1/(rate*params.attack);
+  if(changedRate||params.release!=cachedRelease)releaseFactor=std::exp(std::log(0.00001)/(rate*std::max(0.01,params.release)));
+  if(changedRate||params.cutoff!=cachedCutoff)filterTarget=1-std::exp(-2*pi*std::clamp(params.cutoff,30.0,rate*0.45)/rate);
+  targetRate=rate;cachedInput=params.inputDb;cachedDrive=params.driveDb;cachedAttack=params.attack;cachedRelease=params.release;cachedCutoff=params.cutoff;
+ }
+
+ void refresh(){oscIncrement=std::min(.45,midiHz(note+bend)/rate);
+  if(!params.rack.enabled){if(legacyPending){for(size_t i=0;i<2;++i)bodies[i].tune(midiHz(legacyNote+legacyInitial[i].detune/100),legacyInitial[i]);legacyPending=false;}for(size_t i=0;i<2;++i)bodies[i].tune(midiHz(note+bend+params.body[i].detune/100),params.body[i]);}step=(sample?sample->rate/rate:1)*std::exp2((note+bend-params.root)/12);}
+ std::array<BodyParameters,2>legacyInitial{};bool legacyPending=false;double legacyNote=60,oscIncrement=0;
  std::array<StereoRackModule,4>rackModules;double oscPhase=0,tailSeconds=0;uint64_t tailAge=0;
+ double targetRate=-1,cachedInput=-1000,cachedDrive=-1000,cachedAttack=-1000,cachedRelease=-1000,cachedCutoff=-1000;std::array<double,2>cachedLevel{{-1000,-1000}};
  FmSource fm;Parameters params;const Sample*sample=nullptr;std::array<Resonator,2>bodies;
  double rate=48000,slew=0.001,velocity=0,step=1,cursor=0,bend=0,filterState=0;
  double input=1,mix=0.8,balance=0.5,drive=1,filterWet=0,driveWet=0,bodyWet=1;
@@ -133,7 +150,7 @@ public:
  int activeVoices()const{int n=0;for(auto&v:voices)if(v.active)++n;return n;}
 private:
  static bool topologyDiff(const RackConfig&a,const RackConfig&b){if(!a.enabled&&!b.enabled)return false;if(a.enabled!=b.enabled||a.order!=b.order)return true;for(size_t i=0;i<4;++i)if(a.modules[i].type!=b.modules[i].type)return true;return false;}
- Parameters snapshot()const{auto p=parameters;if(p.rack.clockRunning)p.rack.ppq+=double(blockOffset)*p.rack.bpm/(60*rate);p.route=currentRoute;p.rack.enabled=currentRack.enabled;p.rack.order=currentRack.order;for(size_t i=0;i<4;++i)p.rack.modules[i].type=currentRack.modules[i].type;return p;}
+ Parameters snapshot()const{auto p=parameters;if(p.rack.clockRunning)p.rack.ppq+=double(blockOffset)*p.rack.bpm/(60*rate);p.route=currentRoute;p.rack.enabled=currentRack.enabled;p.rack.order=currentRack.order;for(size_t i=0;i<4;++i)p.rack.modules[i].type=currentRack.modules[i].type;p.preparedTail=rackTailSeconds(p.rack);return p;}
  RackConfig currentRack,pendingRack;std::array<Voice,16>voices;std::array<bool,16>sustain{},keyUp{};std::array<double,16>bend{},expression{},volume{};
  uint64_t counter=0,blockOffset=0;double rate=48000,slew=0.001,gain=1,outputTarget=1,routeFade=1;int currentRoute=0,pendingRoute=0,routeStage=0;
 };

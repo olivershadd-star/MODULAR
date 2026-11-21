@@ -10,7 +10,7 @@ public: juce::Optional<PositionInfo>position;juce::Optional<PositionInfo>getPosi
  void set(double ppq,bool playing){PositionInfo p;p.setBpm(120);p.setPpqPosition(ppq);p.setIsPlaying(playing);position=p;}
 };
 juce::Component*findControl(juce::Component&root,const juce::String&id){for(int i=0;i<root.getNumChildComponents();++i){auto*c=root.getChildComponent(i);if(c->getComponentID()==id&&dynamic_cast<juce::Slider*>(c))return c;if(auto*match=findControl(*c,id))return match;}return nullptr;}
-int main(){
+int runTests(){
  juce::ScopedJuceInitialiser_GUI init;
  auto p=std::make_unique<ResonantLab>();set(*p,"rack_on",0);p->prepareToPlay(48000,512);
  set(*p,"edit",0);p->editBodyParameter(1,0.25f);check(std::abs(get(*p,"a_brightness")-0.25f)<0.001f,"A edit");check(get(*p,"b_brightness")>0.5f,"B changed while editing A");
@@ -67,7 +67,8 @@ int main(){
  // FM source is global, survives full state, and is preserved by chain recipes.
  set(*q,"fm_on",1);set(*q,"fm_ratio",1.414f);set(*q,"fm_index",4);set(*q,"fm_feedback",.2f);set(*q,"sample",1);set(*q,"rack_on",1);set(*q,"seq_on",0);for(int j=1;j<=4;++j)set(*q,("m"+juce::String(j)+"_type").toRawUTF8(),0);q->prepareToPlay(48000,128);juce::AudioBuffer<float>fmAudio(2,128);juce::MidiBuffer fmMidi;double fmEnergy=0;for(int i=0;i<24064;i+=128){fmMidi.clear();if(i==0)fmMidi.addEvent(juce::MidiMessage::noteOn(1,60,.5f),0);if(i==12032)fmMidi.addEvent(juce::MidiMessage::noteOff(1,60),0);q->processBlock(fmAudio,fmMidi);for(int k=0;k<128;++k){auto v=fmAudio.getSample(0,k);check(std::isfinite(v)&&std::abs(v)<=.981f,"FM plugin unsafe");fmEnergy+=v*v;}}check(fmEnergy>.01,"FM plugin silent");
  q->getStateInformation(rackState);p->setStateInformation(rackState.getData(),int(rackState.getSize()));check(get(*p,"fm_on")==1&&std::abs(get(*p,"fm_ratio")-1.414f)<.002f&&get(*p,"fm_index")==4,"FM full state restoration");check(p->state.getParameter("fm_on")->getParameterIndex()>p->state.getParameter("m4_sm_patch2_amount")->getParameterIndex(),"FM controls inserted into old parameter order");
- recipe=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("anks-fm-chain",".ankschain");check(q->saveRecipe(recipe,false),"FM chain fixture");set(*p,"fm_index",7);check(p->loadRecipe(recipe,false)&&get(*p,"fm_on")==1&&get(*p,"fm_index")==7,"chain overwrote FM source");recipe.deleteFile();
+ // Preserve the actual quantized value: a 0.001f step can represent 7 as 7.00000048.
+ recipe=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("anks-fm-chain",".ankschain");check(q->saveRecipe(recipe,false),"FM chain fixture");set(*p,"fm_index",7);const float fmIndexBefore=get(*p,"fm_index");check(std::abs(fmIndexBefore-7)<.001f,"FM index fixture");check(p->loadRecipe(recipe,false)&&get(*p,"fm_on")==1&&get(*p,"fm_index")==fmIndexBefore,"chain overwrote FM source");recipe.deleteFile();
  {auto xml=juce::AudioProcessor::getXmlFromBinary(rackState.getData(),int(rackState.getSize()));auto tree=juce::ValueTree::fromXml(*xml);for(int i=tree.getNumChildren()-1;i>=0;--i)if(tree.getChild(i).getProperty("id").toString().startsWith("fm_"))tree.removeChild(i,nullptr);auto old=tree.createXml();juce::MemoryBlock state13;juce::AudioProcessor::copyXmlToBinary(*old,state13);p->setStateInformation(state13.getData(),int(state13.getSize()));check(get(*p,"fm_on")==0&&get(*p,"fm_ratio")==2,"pre-FM state defaults");}
  check(q->loadFactory(0).isEmpty()&&get(*q,"fm_on")==0&&get(*q,"sample")==1,"factory load did not select single WAV source");
  // Representative compact default editor, no long scrolling rack.
@@ -78,4 +79,7 @@ int main(){
   juce::File fileOut{juce::String(preview)};fileOut.deleteFile();auto stream=fileOut.createOutputStream();check(stream!=nullptr,"preview output");check(juce::PNGImageFormat{}.writeImageToStream(image,*stream),"preview rendering");
  }
  std::cout<<"PASS: actual plugin A/B/linked semantics; route edit; sample-accurate note; WAV load; full parameter+audio state restoration; 32-frame host clock; internal sequence; file presets; V0.3 migration; stable module identities; chain/source separation; module remap; bad recipe rejection; rack state; embedded WAVs; Ableton Configure indices; host MIDI short-note effect acceptance.\n";
+ return 0;
 }
+
+int main(){try{return runTests();}catch(const std::exception&e){std::cerr<<"FAIL: "<<e.what()<<std::endl;return 1;}catch(...){std::cerr<<"FAIL: unknown plugin test exception"<<std::endl;return 1;}}

@@ -13,7 +13,9 @@ class FmSource {
  static constexpr double tau=6.28318530717958647692;
  struct Envelope {
   double value=0,attack=1,decay=.001,sustain=0,sustainTarget=0,sustainStep=.001,release=.001;int stage=1;
-  void configure(double sr,double a,double d,double s,double r,bool first){sustainStep=1-std::exp(-1/(sr*.005));attack=a<=0?1:1/(sr*a);decay=1-std::exp(-6.907755/(sr*std::max(.005,d)));sustainTarget=std::clamp(s,0.,1.);if(first)sustain=sustainTarget;release=std::exp(-11.512925/(sr*std::max(.005,r)));}
+  double cachedRate=-1,cachedAttack=-1,cachedDecay=-1,cachedRelease=-1;
+  void configure(double sr,double a,double d,double s,double r,bool first){bool rateChanged=sr!=cachedRate;if(rateChanged)sustainStep=1-std::exp(-1/(sr*.005));if(rateChanged||a!=cachedAttack)attack=a<=0?1:1/(sr*a);if(rateChanged||d!=cachedDecay)decay=1-std::exp(-6.907755/(sr*std::max(.005,d)));sustainTarget=std::clamp(s,0.,1.);if(first)sustain=sustainTarget;if(rateChanged||r!=cachedRelease)release=std::exp(-11.512925/(sr*std::max(.005,r)));cachedRate=sr;cachedAttack=a;cachedDecay=d;cachedRelease=r;}
+
   void reset(){value=0;stage=1;}
   double next(bool held){sustain+=sustainStep*(sustainTarget-sustain);if(!held)stage=4;if(stage==1){value=std::min(1.,value+attack);if(value>=1)stage=2;}else if(stage==2){value+=(sustain-value)*decay;if(std::abs(value-sustain)<1e-6)stage=3;}else if(stage==3)value=sustain;else value*=release;return value;}
  } modEnvelope,ampEnvelope;

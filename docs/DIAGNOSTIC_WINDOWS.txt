@@ -1,0 +1,21 @@
+MESURES AUDIO ANKS — 1.3 alpha 3
+
+Dans le dossier Diagnostics, double-cliquer Mesurer_Performances.cmd.
+Le programme cree performance-PC.csv apres quelques minutes.
+Conserver ce fichier avec les reglages du pilote utilises dans l'hote.
+
+Le banc mesure le moteur hors de l'hote, avec trois frequences, trois tailles
+de bloc, des accords, des queues, des changements de parametres et d'ordre.
+Les delais limites sont ceux de la taille de bloc / frequence.
+
+chord_notes : nombre de notes declenchees ensemble.
+active_voices_peak : maximum de voix actives, queues comprises.
+mean_us, p95_us, p99_us, max_us : durees par bloc en microsecondes.
+deadline_us : temps disponible par bloc.
+overruns : nombre de blocs qui ont depasse ce temps pendant la mesure.
+note_on_max_us : pire bloc contenant une rafale de notes.
+cpu_mean_us : moyenne du temps CPU des callbacks ; granularite selon OS.
+
+Un resultat hors de l'hote ne couvre pas les pilotes, l'interface graphique,
+les autres plugins ni la priorite du thread audio. Il faut ensuite verifier
+le meme patch et la meme polyphonie dans l'hote, avec le buffer reel.

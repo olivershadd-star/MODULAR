@@ -1,8 +1,12 @@
-# ANKS Resonant Lab 1.3 alpha 2
+# ANKS Resonant Lab 1.3 alpha 3
 
 Instrument C++ / JUCE 8.0.6 — VST3 et application autonome Windows x64. Auteur : ANKS.
 
 Cette mouture conserve la banque de 36 excitations et ajoute trois traitements réordonnables : **Semi-modulaire**, **Décalage de fréquence** et **Freeze spectral**. La source reste unique, en amont du rack : WAV/factory ou onde interne (impact, sinus, triangle, dent de scie, carré). Aucun de ces traitements n’ajoute automatiquement un oscillateur.
+
+### Révision performances
+
+Cette révision ajoute un banc de charge par bloc, réduit les remises à zéro et accords inutilisés, conserve les coefficients inchangés et évite l’analyse spectrale redondante pendant un freeze maintenu. Les tables FFT sont partagées en lecture seule. Les contrôles, la polyphonie et les durées de queues restent conservés. Aucun ajout d’emplacements dans cette étape. Voir `docs/PERFORMANCES.md` pour le protocole et les limites des mesures ; aucune absence de craquement n’est garantie sur une autre machine.
 
 ### Source FM à deux opérateurs
 
@@ -100,9 +104,9 @@ Hote suit le transport d'Ableton. Interne utilise PLAY et le tempo réglé dans 
 
 ## Compilation et installation
 
-Même procédure : ZIP de sources → extraire → déposer le contenu dans GitHub → **Actions → VST3 Windows**. Télécharger l'artifact **ANKS-Resonant-Lab-V1-3-Alpha-2-Windows**, puis extraire son ZIP Windows. Il contient le VST3 et Standalone, avec les WAV compilés dedans.
+Même procédure : ZIP de sources → extraire → déposer le contenu dans GitHub → **Actions → VST3 Windows**. Télécharger l'artifact **ANKS-Resonant-Lab-V1-3-Alpha-3-Windows**, puis extraire son ZIP Windows. Il contient le VST3 et Standalone, avec les WAV compilés dedans.
 
-Si le workflow manque, créer `.github/workflows/build-vst3.yml` et copier le fichier visible `build-vst3.yml`. Le script utilise le commit officiel JUCE 8.0.6 fixé, construit les deux formats et lance neuf séries de tests, dont le contrôle de la banque si Python est disponible. En local : Visual Studio C++, SDK Windows et CMake, puis Construire_Windows.ps1.
+Si le workflow manque, créer `.github/workflows/build-vst3.yml` et copier le fichier visible `build-vst3.yml`. Le script utilise le commit officiel JUCE 8.0.6 fixé, construit les deux formats et lance dix séries de tests, dont le contrôle de la banque si Python est disponible. En local : Visual Studio C++, SDK Windows et CMake, puis Construire_Windows.ps1.
 
 Identité VST3 conservée `Anks/Arlc`. Ne pas scanner simultanément plusieurs versions de même identifiant; conserver les anciennes archives et une copie des projets. Un ancien chemin de plugin peut demander une nouvelle sélection dans Curve Pilot.
 

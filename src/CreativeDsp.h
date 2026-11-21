@@ -17,34 +17,51 @@ public:
 };
 class SpectralHold {
  static constexpr int n=1024,hop=256,bins=n/2+1;
- std::array<double,n> input{},output{},window{};
- std::array<std::complex<double>,n> frame{},twiddle{};
- std::array<int,n> reverse{};
+ struct Tables {
+  std::array<double,n>window{};std::array<std::complex<double>,n>twiddle{};std::array<int,n>reverse{};
+  Tables(){for(int i=0;i<n;++i){window[size_t(i)]=.5-.5*std::cos(2*pi*i/n);twiddle[size_t(i)]=std::polar(1.,-2*pi*i/n);int x=i,r=0;for(int b=0;b<10;++b){r=(r<<1)|(x&1);x>>=1;}reverse[size_t(i)]=r;}}
+ };
+ static const Tables&sharedTables(){static const Tables value;return value;}
+ const Tables*tables=nullptr;
+ std::array<double,n> input{},output{};
+ std::array<std::complex<double>,n> frame{};
+ std::array<double,n> previousWindow{};bool pendingAnalysis=false;
  std::array<double,bins> previous{},magnitude{},advance{},phase{};
  int position=0,tick=0,filled=0;bool analysed=false;double lastDry=0;bool captured=false,lastHold=false;
  static double wrap(double x){return x-2*pi*std::floor((x+pi)/(2*pi));}
- void fft(bool inverse){for(int i=0;i<n;++i)if(i<reverse[size_t(i)])std::swap(frame[size_t(i)],frame[size_t(reverse[size_t(i)])]);for(int size=2;size<=n;size*=2)for(int base=0;base<n;base+=size)for(int j=0;j<size/2;++j){auto w=twiddle[size_t(j*n/size)];if(inverse)w=std::conj(w);auto a=frame[size_t(base+j)],b=frame[size_t(base+j+size/2)]*w;frame[size_t(base+j)]=a+b;frame[size_t(base+j+size/2)]=a-b;}if(inverse)for(auto&x:frame)x/=n;}
+ void fft(bool inverse){for(int i=0;i<n;++i)if(i<tables->reverse[size_t(i)])std::swap(frame[size_t(i)],frame[size_t(tables->reverse[size_t(i)])]);for(int size=2;size<=n;size*=2)for(int base=0;base<n;base+=size)for(int j=0;j<size/2;++j){auto w=tables->twiddle[size_t(j*n/size)];if(inverse)w=std::conj(w);auto a=frame[size_t(base+j)],b=frame[size_t(base+j+size/2)]*w;frame[size_t(base+j)]=a+b;frame[size_t(base+j+size/2)]=a-b;}if(inverse)for(auto&x:frame)x/=n;}
  void processFrame(bool hold){
-  for(int i=0;i<n;++i)frame[size_t(i)]={input[size_t((position+i)%n)]*window[size_t(i)],0};
-  fft(false);
-  bool take=hold&&!captured&&analysed;
-  for(int k=0;k<bins;++k){double angle=std::arg(frame[size_t(k)]),expected=2*pi*k*hop/n;double delta=expected+wrap(angle-previous[size_t(k)]-expected);previous[size_t(k)]=angle;if(take){magnitude[size_t(k)]=std::abs(frame[size_t(k)]);advance[size_t(k)]=delta;phase[size_t(k)]=angle;}if(hold&&captured)phase[size_t(k)]=wrap(phase[size_t(k)]+advance[size_t(k)]);if(hold&&(captured||take))frame[size_t(k)]=std::polar(magnitude[size_t(k)],phase[size_t(k)]);}
-  if(take)captured=true;
+  const bool take=hold&&!captured&&analysed;
+  if(hold&&captured){
+   // Keep the last input window, but avoid its FFT while the frozen spectrum is used.
+   // A rapid off/on between hops can still recover the exact previous analysis.
+   for(int i=0;i<n;++i)previousWindow[size_t(i)]=input[size_t((position+i)%n)]*tables->window[size_t(i)];
+   pendingAnalysis=true;
+   for(int k=0;k<bins;++k){phase[size_t(k)]=wrap(phase[size_t(k)]+advance[size_t(k)]);frame[size_t(k)]=std::polar(magnitude[size_t(k)],phase[size_t(k)]);}
+  }else{
+   if(take&&pendingAnalysis){for(int i=0;i<n;++i)frame[size_t(i)]={previousWindow[size_t(i)],0};fft(false);for(int k=0;k<bins;++k)previous[size_t(k)]=std::arg(frame[size_t(k)]);}
+   pendingAnalysis=false;
+   for(int i=0;i<n;++i)frame[size_t(i)]={input[size_t((position+i)%n)]*tables->window[size_t(i)],0};
+   fft(false);
+   for(int k=0;k<bins;++k){double angle=std::arg(frame[size_t(k)]),expected=2*pi*k*hop/n;double delta=expected+wrap(angle-previous[size_t(k)]-expected);previous[size_t(k)]=angle;if(take){magnitude[size_t(k)]=std::abs(frame[size_t(k)]);advance[size_t(k)]=delta;phase[size_t(k)]=angle;frame[size_t(k)]=std::polar(magnitude[size_t(k)],phase[size_t(k)]);}}
+   if(take)captured=true;
+  }
   analysed=true;
   frame[0]={frame[0].real(),0};frame[n/2]={frame[n/2].real(),0};for(int k=1;k<n/2;++k)frame[size_t(n-k)]=std::conj(frame[size_t(k)]);
-  fft(true);for(int i=0;i<n;++i)output[size_t((position+i)%n)]+=frame[size_t(i)].real()*window[size_t(i)]*(2.0/3.0);
+  fft(true);for(int i=0;i<n;++i)output[size_t((position+i)%n)]+=frame[size_t(i)].real()*tables->window[size_t(i)]*(2.0/3.0);
  }
+
 public:
- void prepare(){for(int i=0;i<n;++i){window[size_t(i)]=.5-.5*std::cos(2*pi*i/n);twiddle[size_t(i)]=std::polar(1.,-2*pi*i/n);int x=i,r=0;for(int b=0;b<10;++b){r=(r<<1)|(x&1);x>>=1;}reverse[size_t(i)]=r;}reset();}
- void reset(){input.fill(0);output.fill(0);previous.fill(0);magnitude.fill(0);advance.fill(0);phase.fill(0);position=tick=filled=0;captured=lastHold=analysed=false;lastDry=0;}
+ void prepare(){tables=&sharedTables();reset();}
+ void reset(){input.fill(0);output.fill(0);previous.fill(0);magnitude.fill(0);advance.fill(0);phase.fill(0);position=tick=filled=0;captured=lastHold=analysed=pendingAnalysis=false;lastDry=0;}
  double dry()const{return lastDry;}
  double next(double x,bool hold){if(hold!=lastHold){if(!hold)captured=false;lastHold=hold;}double y=output[size_t(position)];output[size_t(position)]=0;lastDry=input[size_t(position)];input[size_t(position)]=x;position=(position+1)%n;filled=std::min(n,filled+1);if(++tick==hop){tick=0;if(filled==n)processFrame(hold);}return y;}
 };
 class SemiModular {
- double rate=48000,env=0,lfo=0,follow=0,frequency=6000,a1=0,a2=0,b1=0,b2=0,attack=1,decay=.001,release=.001,followStep=.001,cutoffStep=.001,driveGain=1;int stage=0;bool gate=false;
+ double rate=48000,env=0,lfo=0,follow=0,frequency=6000,a1=0,a2=0,b1=0,b2=0,attack=1,decay=.001,release=.001,followStep=.001,cutoffStep=.001,driveGain=1;double cachedRate=-1,cachedAttack=-1,cachedDecay=-1,cachedRelease=-1,cachedDrive=-1;int stage=0;bool gate=false;
 public:
  void prepare(double sr){rate=sr;followStep=1-std::exp(-1/(rate*.02));cutoffStep=1-std::exp(-1/(rate*.005));reset();}
- void configure(const RackParameters&p){attack=1/(rate*std::max(.001,p.smAttack));decay=1-std::exp(-6.907755/(rate*std::max(.005,p.smDecay)));release=std::exp(-11.512925/(rate*std::max(.005,p.smRelease)));driveGain=dbGain(p.smDrive);}
+ void configure(const RackParameters&p){bool rateChanged=rate!=cachedRate;if(rateChanged||p.smAttack!=cachedAttack)attack=1/(rate*std::max(.001,p.smAttack));if(rateChanged||p.smDecay!=cachedDecay)decay=1-std::exp(-6.907755/(rate*std::max(.005,p.smDecay)));if(rateChanged||p.smRelease!=cachedRelease)release=std::exp(-11.512925/(rate*std::max(.005,p.smRelease)));if(rateChanged||p.smDrive!=cachedDrive)driveGain=dbGain(p.smDrive);cachedRate=rate;cachedAttack=p.smAttack;cachedDecay=p.smDecay;cachedRelease=p.smRelease;cachedDrive=p.smDrive;}
  void reset(){env=lfo=follow=a1=a2=b1=b2=0;frequency=std::min(6000.,rate*.4);stage=0;gate=false;}
  void setGate(bool on){if(on&&!gate)stage=1;if(!on&&gate)stage=4;gate=on;}
  double next(double x,const RackParameters&p){
