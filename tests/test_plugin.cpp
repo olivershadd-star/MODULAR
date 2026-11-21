@@ -2,6 +2,8 @@
 #include <iostream>
 #include <stdexcept>
 #include <cstdlib>
+#include <thread>
+#include <future>
 void check(bool ok,const char*msg){if(!ok)throw std::runtime_error(msg);}
 void set(ResonantLab&p,const char*id,float v){auto*q=p.state.getParameter(id);q->setValueNotifyingHost(q->convertTo0to1(v));}
 float get(ResonantLab&p,const char*id){return p.state.getRawParameterValue(id)->load();}
@@ -78,6 +80,9 @@ int runTests(){
   juce::Image image(juce::Image::ARGB,editor->getWidth(),editor->getHeight(),true);juce::Graphics g(image);editor->paintEntireComponent(g,true);
   juce::File fileOut{juce::String(preview)};fileOut.deleteFile();auto stream=fileOut.createOutputStream();check(stream!=nullptr,"preview output");check(juce::PNGImageFormat{}.writeImageToStream(image,*stream),"preview rendering");
  }
+ // Callback timing remains separate from the Windows all-core CPU percentage.
+ p->prepareToPlay(48000,128);juce::AudioBuffer<float>timed(2,128);juce::MidiBuffer timedMidi;p->processBlock(timed,timedMidi);check(std::isfinite(p->audioLoad.load())&&p->audioLoad.load()>=0&&p->audioLoadPeak.load()>=p->audioLoad.load(),"callback timing invalid");
+ std::promise<void>held,release;auto heldFuture=held.get_future();auto releaseFuture=release.get_future();std::thread locker([&]{const juce::ScopedLock lock(p->getCallbackLock());held.set_value();releaseFuture.wait();});heldFuture.wait();p->processBlock(timed,timedMidi);bool blocked=p->blockedCallbacks.load()==1&&timed.getMagnitude(0,128)==0;release.set_value();locker.join();check(blocked,"contended callback not reported or not silent");
  std::cout<<"PASS: actual plugin A/B/linked semantics; route edit; sample-accurate note; WAV load; full parameter+audio state restoration; 32-frame host clock; internal sequence; file presets; V0.3 migration; stable module identities; chain/source separation; module remap; bad recipe rejection; rack state; embedded WAVs; Ableton Configure indices; host MIDI short-note effect acceptance.\n";
  return 0;
 }

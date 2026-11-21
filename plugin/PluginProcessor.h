@@ -27,6 +27,7 @@ public:
  juce::MidiKeyboardState keyboard;
  std::atomic<float>currentBpm{120};
  std::atomic<int> sequenceStep{-1},clockStatus{0};
+ std::atomic<float>audioLoad{0},audioLoadPeak{0};std::atomic<uint64_t>lateCallbacks{0},blockedCallbacks{0};
  std::atomic<float> meterPeak{0};std::atomic<bool>clipLatch{false};
  void setRouteOrder(const std::array<int,3>&);
  void editBodyParameter(size_t,float);

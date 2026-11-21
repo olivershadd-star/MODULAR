@@ -2,6 +2,11 @@
 #include "RackEditor.h"
 #include "SampleIO.h"
 #include <limits>
+#include <chrono>
+namespace {
+struct AudioBlockTimer{ResonantLab&processor;int samples;double rate;std::chrono::steady_clock::time_point start=std::chrono::steady_clock::now();~AudioBlockTimer(){if(samples<=0||rate<=0)return;double seconds=std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count();float load=float(seconds*rate/samples);processor.audioLoad.store(load,std::memory_order_relaxed);float peak=processor.audioLoadPeak.load(std::memory_order_relaxed);while(peak<load&&!processor.audioLoadPeak.compare_exchange_weak(peak,load,std::memory_order_relaxed)){}if(load>1)processor.lateCallbacks.fetch_add(1,std::memory_order_relaxed);}};
+}
+
 ResonantLab::ResonantLab():AudioProcessor(BusesProperties().withOutput("Output",juce::AudioChannelSet::stereo(),true)),state(*this,nullptr,"ANKS3",layout()){
  const char*bodyIds[]={"decay","brightness","position","detune","level","on","odd"};
  for(size_t i=0;i<2;++i)for(size_t j=0;j<7;++j)bodyPointers[i][j]=state.getRawParameterValue(juce::String(i==0?"a_":"b_")+bodyIds[j]);
@@ -14,7 +19,7 @@ ResonantLab::ResonantLab():AudioProcessor(BusesProperties().withOutput("Output",
  for(size_t i=0;i<4;++i){auto prefix="m"+juce::String(int(i+1))+"_";rackTypes[i]=state.getRawParameterValue(prefix+"type");for(size_t j=0;j<anks::rackFields.size();++j)rackPointers[i][j]=state.getRawParameterValue(prefix+anks::rackFields[j].id);}
 
 }
-void ResonantLab::prepareToPlay(double sr,int){freePpq=0;audioRate=sr;updateParameters();engine.prepare(sr);sequence.prepare(sr);sequenceStep.store(-1);keyboard.reset();}
+void ResonantLab::prepareToPlay(double sr,int){audioLoad.store(0);audioLoadPeak.store(0);lateCallbacks.store(0);blockedCallbacks.store(0);freePpq=0;audioRate=sr;updateParameters();engine.prepare(sr);sequence.prepare(sr);sequenceStep.store(-1);keyboard.reset();}
 juce::AudioProcessorEditor*ResonantLab::createEditor(){return new RackEditor(*this);}
 juce::AudioProcessorValueTreeState::ParameterLayout ResonantLab::layout(){
  juce::AudioProcessorValueTreeState::ParameterLayout l;
@@ -82,9 +87,10 @@ void ResonantLab::editBodyParameter(size_t index,float value){
 }
 void ResonantLab::setRouteOrder(const std::array<int,3>&order){for(size_t i=0;i<anks::routes.size();++i)if(anks::routes[i]==order){auto*p=state.getParameter("route");p->beginChangeGesture();p->setValueNotifyingHost(p->convertTo0to1(float(i)));p->endChangeGesture();return;}}
 void ResonantLab::processBlock(juce::AudioBuffer<float>&out,juce::MidiBuffer&midi){
+ AudioBlockTimer timing{*this,out.getNumSamples(),audioRate};
  juce::ScopedNoDenormals guard;out.clear();
  // Imports and restores never wait on the audio thread: a contended block is silent.
- const juce::ScopedTryLock lock(getCallbackLock());if(!lock.isLocked()){droppedBlock=true;midi.clear();return;}
+ const juce::ScopedTryLock lock(getCallbackLock());if(!lock.isLocked()){blockedCallbacks.fetch_add(1,std::memory_order_relaxed);droppedBlock=true;midi.clear();return;}
  if(droppedBlock){engine.panic();sequence.reset();droppedBlock=false;}
  updateParameters();
  auto config=readSequence();anks::HostClock host;
@@ -121,7 +127,7 @@ juce::String ResonantLab::loadSampleBytes(juce::MemoryBlock bytes,const juce::St
 juce::String ResonantLab::loadFactory(int index){int size=0;auto*data=anks::factory::bytes(index,size);if(!data||size<=0)return "Excitation interne absente.";auto error=loadSampleBytes(juce::MemoryBlock(data,size),anks::factory::name(index));if(error.isEmpty()){auto*p=state.getParameter("root");p->beginChangeGesture();p->setValueNotifyingHost(p->convertTo0to1(float(anks::factory::root(index))));p->endChangeGesture();}return error;}
 juce::String ResonantLab::sampleLabel(){const juce::ScopedLock lock(sampleStateLock);return sourceName;}
 void ResonantLab::getStateInformation(juce::MemoryBlock&dest){
- auto snapshot=state.copyState();snapshot.setProperty("anksSuiteSchema",3,nullptr);snapshot.setProperty("instrumentVersion","1.3.0-alpha.3",nullptr);{const juce::ScopedLock lock(sampleStateLock);snapshot.setProperty("sourceName",sourceName,nullptr);snapshot.setProperty("audioBase64",sourceBytes.toBase64Encoding(),nullptr);}
+ auto snapshot=state.copyState();snapshot.setProperty("anksSuiteSchema",3,nullptr);snapshot.setProperty("instrumentVersion","1.3.0-alpha.4",nullptr);{const juce::ScopedLock lock(sampleStateLock);snapshot.setProperty("sourceName",sourceName,nullptr);snapshot.setProperty("audioBase64",sourceBytes.toBase64Encoding(),nullptr);}
  auto xml=snapshot.createXml();copyXmlToBinary(*xml,dest);
 }
 void ResonantLab::setStateInformation(const void*data,int size){restoreState(data,size);}

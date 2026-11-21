@@ -1,8 +1,12 @@
-# ANKS Resonant Lab 1.3 alpha 3
+# ANKS Resonant Lab 1.3 alpha 4
 
 Instrument C++ / JUCE 8.0.6 — VST3 et application autonome Windows x64. Auteur : ANKS.
 
 Cette mouture conserve la banque de 36 excitations et ajoute trois traitements réordonnables : **Semi-modulaire**, **Décalage de fréquence** et **Freeze spectral**. La source reste unique, en amont du rack : WAV/factory ou onde interne (impact, sinus, triangle, dent de scie, carré). Aucun de ces traitements n’ajoute automatiquement un oscillateur.
+
+### Correction des clics et du bypass
+
+Les modules OFF arrêtent maintenant leur DSP après le fondu de bypass ; leur réactivation repart avec une mémoire propre. Les boucles internes des grains utilisent un raccord progressif, et la dispersion évite les fragments quasi ponctuels lorsque suffisamment de son est disponible. Le rendu granulaire évolue sur ces raccords. Un indicateur Audio affiche la durée du traitement rapportée au budget du bloc, son pic et le nombre de dépassements. Il ne mesure pas les pertes du pilote. Voir `docs/EVOLUTION_V1_3_ALPHA_4.md`.
 
 ### Révision performances
 
@@ -104,7 +108,7 @@ Hote suit le transport d'Ableton. Interne utilise PLAY et le tempo réglé dans 
 
 ## Compilation et installation
 
-Même procédure : ZIP de sources → extraire → déposer le contenu dans GitHub → **Actions → VST3 Windows**. Télécharger l'artifact **ANKS-Resonant-Lab-V1-3-Alpha-3-Windows**, puis extraire son ZIP Windows. Il contient le VST3 et Standalone, avec les WAV compilés dedans.
+Même procédure : ZIP de sources → extraire → déposer le contenu dans GitHub → **Actions → VST3 Windows**. Télécharger l'artifact **ANKS-Resonant-Lab-V1-3-Alpha-4-Windows**, puis extraire son ZIP Windows. Il contient le VST3 et Standalone, avec les WAV compilés dedans.
 
 Si le workflow manque, créer `.github/workflows/build-vst3.yml` et copier le fichier visible `build-vst3.yml`. Le script utilise le commit officiel JUCE 8.0.6 fixé, construit les deux formats et lance dix séries de tests, dont le contrôle de la banque si Python est disponible. En local : Visual Studio C++, SDK Windows et CMake, puis Construire_Windows.ps1.
 

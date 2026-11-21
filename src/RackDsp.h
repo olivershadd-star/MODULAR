@@ -30,12 +30,15 @@ struct PeakEq {
  double next(double x){double y=b0*x+z1;z1=b1*x-a1*y+z2;z2=b2*x-a2*y;return y;}
 };
 class RackModule {
- struct Grain {double read=0,start=0,end=1,step=1,attackDenom=1,releaseDenom=1,span=1;int age=0,length=1;bool active=false;};
+ struct Grain {double read=0,start=0,end=1,step=1,attackDenom=1,releaseDenom=1,span=1,seam=0,period=1;int age=0,length=1;bool active=false;};
 public:
+ bool isSuspended()const{return sleeping;}
  void setGate(bool gate){semi.setGate(gate);}
  void prepare(double sr,bool right=false){shifter.prepare(sr);freeze.prepare();semi.prepare(sr);rightChannel=right;rate=sr;slew=1-std::exp(-1/(sr*.01));for(auto&r:body)r.prepare(sr);history.prepare(size_t(sr*2.1)+8);reset();}
- void reset(){shifter.reset();if(params.type==8)freeze.reset();semi.reset();if(params.type==1)for(auto&r:body)r.reset();for(auto&e:eq)e.reset();history.reset();for(auto&g:grains)g.active=false;sv1=sv2=toneState=0;phase=0;spawn=0;firstGrain=true;random=0x9182ab31u;}
+ void reset(){sleeping=false;shifter.reset();if(params.type==8)freeze.reset();semi.reset();if(params.type==1)for(auto&r:body)r.reset();for(auto&e:eq)e.reset();history.reset();for(auto&g:grains)g.active=false;sv1=sv2=toneState=0;phase=0;spawn=0;firstGrain=true;random=0x9182ab31u;}
  void configure(const RackParameters&p,double hz,double bpm,double ppq,bool first=false,bool updateClock=true,const RackModule*tuningReference=nullptr){
+  const bool resume=sleeping&&p.on&&p.type!=0;
+  if(resume){reset();first=true;}
   if(p.type!=params.type){reset();if(p.type==8)freeze.reset();if(p.type==1)for(auto&r:body)r.reset();first=true;}
   std::array<bool,2>tuneBody{};
   if(p.type==1)for(size_t i=0;i<2;++i){const auto&a=p.body[i];const auto&b=params.body[i];tuneBody[i]=first||hz!=frequency||a.decay!=b.decay||a.brightness!=b.brightness||a.position!=b.position||a.detune!=b.detune||a.odd!=b.odd;}
@@ -50,10 +53,11 @@ public:
   if(updateEq&&p.type==2&&p.filterMode==4)for(size_t i=0;i<4;++i)eq[i].configure(rate,p.eqFrequency[i],p.eqGain[i],p.eqQ[i]);
   for(size_t i=0;i<2;++i){bodyEnabledTarget[i]=p.body[i].on?1:0;if(first){bodyLevel[i]=bodyLevelTarget[i];bodyEnabled[i]=bodyEnabledTarget[i];}}
   speed=p.lfoSync?bpm/(60*p.lfoBeats):p.lfoRate;if(p.lfoSync&&updateClock)phase=ppq/p.lfoBeats-std::floor(ppq/p.lfoBeats);
-  target=p.on&&p.type!=0?1:0;if(first){wet=target;mix=p.mix;balance=p.balance;cutoff=p.cutoff;drive=dbGain(p.drive);level=dbGain(p.level);delay=p.time*rate;}
+  target=p.on&&p.type!=0?1:0;if(first){wet=target;mix=p.mix;balance=p.balance;cutoff=p.cutoff;drive=dbGain(p.drive);level=dbGain(p.level);delay=p.time*rate;sleeping=target==0;if(resume)wet=0;}
  }
  double next(double x){
-  if(params.type==0)return x;
+  if(params.type==0||sleeping)return x;
+  if(target==0&&wet<1e-7){wet=0;sleeping=true;return x;}
   wet+=slew*(target-wet);mix+=slew*(params.mix-mix);balance+=slew*(params.balance-balance);cutoff+=slew*(params.cutoff-cutoff);drive+=slew*(driveTarget-drive);level+=slew*(levelTarget-level);
   double y=x,alignedDry=x;
   switch(static_cast<ModuleType>(params.type)){
@@ -86,15 +90,18 @@ public:
       double jitter=(rand01()*2-1)*params.scatter*.25*rate;
       double desired=latest-params.position*rate+jitter;
       // At startup the requested lookback is clamped to the material actually available.
-      g.start=std::clamp(desired-g.length*g.step,oldest,std::max(oldest,latest-2));
-      g.end=std::min(latest,g.start+g.length*g.step);g.read=g.start;g.span=std::max(1.,g.end-g.start);g.attackDenom=std::max(1.,std::min(rate*.001,g.length*.1));g.releaseDenom=std::max(1.,g.length*.25);break;
+      double minimum=std::max(2.,std::min({rate*.005,g.length*g.step,latest-oldest}));
+      g.start=std::clamp(desired-g.length*g.step,oldest,std::max(oldest,latest-minimum));
+      g.end=std::min(latest,g.start+g.length*g.step);g.read=g.start;g.span=std::max(1.,g.end-g.start);g.seam=std::min(rate*.002,g.span*.25);g.period=g.span-g.seam;g.attackDenom=std::max(1.,std::min(rate*.001,g.length*.1));g.releaseDenom=std::max(1.,g.length*.25);break;
      }
     }
     y=0;double weight=0;
     for(auto&g:grains)if(g.active){
      double w=std::min(1.,double(g.age+1)/g.attackDenom)*std::min(1.,double(g.length-g.age)/g.releaseDenom);
-     y+=history.absolute(g.read)*w;weight+=w;
-     g.read+=g.step;if(g.read>=g.end)g.read=g.start+std::fmod(g.read-g.start,g.span);
+     double sample=history.absolute(g.read);
+     if(g.read>g.end-g.seam){double progress=(g.read-(g.end-g.seam))/g.seam;double head=history.absolute(g.start+g.read-(g.end-g.seam));sample+=progress*(head-sample);}
+     y+=sample*w;weight+=w;
+     g.read+=g.step;if(g.read>=g.end)g.read=g.start+g.seam+std::fmod(g.read-g.end,g.period);
      if(++g.age>=g.length)g.active=false;
     }
     y/=std::max(1.,weight);break;}
@@ -107,7 +114,7 @@ public:
 private:
  double rand01(){random^=random<<13;random^=random>>17;random^=random<<5;return random/4294967295.;}
  double driveTarget=2,levelTarget=1,toneCoefficient=.5;std::array<double,2>bodyLevel{{1,1}},bodyLevelTarget{{1,1}},bodyEnabled{{1,1}},bodyEnabledTarget{{1,1}};
- bool rightChannel=false,firstGrain=true;
+ bool rightChannel=false,firstGrain=true,sleeping=false;
  FrequencyShift shifter;SpectralHold freeze;SemiModular semi;
  RackParameters params;std::array<Resonator,2>body;std::array<PeakEq,4>eq;History history;std::array<Grain,16>grains{};
  double rate=48000,slew=.001,frequency=0,wet=1,target=1,mix=.8,balance=.5,cutoff=6000,drive=2,level=1,delay=12000,sv1=0,sv2=0,toneState=0,phase=0,speed=.5,spawn=0;uint32_t random=0x9182ab31u;
