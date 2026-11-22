@@ -78,7 +78,8 @@ int runTests(){
  if(const char*preview=std::getenv("ANKS_UI_PREVIEW")){set(*q,"m5_type",12);set(*q,"m6_type",13);
   std::unique_ptr<juce::AudioProcessorEditor>editor(q->createEditor());editor->setSize(std::getenv("ANKS_UI_MINIMUM")?1000:1180,std::getenv("ANKS_UI_MINIMUM")?760:850);if(std::getenv("ANKS_UI_SEQUENCE"))for(int i=0;i<editor->getNumChildComponents();++i)if(auto*view=dynamic_cast<juce::Viewport*>(editor->getChildComponent(i)))view->setViewPosition(0,999999);
   editor->setVisible(true);
-  juce::Image image(juce::Image::ARGB,editor->getWidth(),editor->getHeight(),true);juce::Graphics g(image);editor->paintEntireComponent(g,true);check(image.getPixelAt(0,0)==juce::Colour(0xff111114),"preview did not paint visible editor");
+  juce::Image image(juce::Image::ARGB,editor->getWidth(),editor->getHeight(),true,juce::SoftwareImageType{});{juce::Graphics g(image);editor->paintEntireComponent(g,true);}
+  check(image.getPixelAt(0,0)==juce::Colour(0xff111114),"software preview did not paint editor background");
   juce::File fileOut{juce::String(preview)};fileOut.deleteFile();auto stream=fileOut.createOutputStream();check(stream!=nullptr,"preview output");check(juce::PNGImageFormat{}.writeImageToStream(image,*stream),"preview rendering");
  }
  // Six-slot identity, complete state, old raw orders and old schema-3 chains.
