@@ -1,10 +1,10 @@
-# Suite ANKS — contrat Resonant Lab 1.2 alpha
+# Suite ANKS — contrat Modular 1.2 alpha
 
-Curve Pilot : rack hôte VST3. Resonant Lab : instrument VST3 ou autonome. Triple Disto : effet externe. Les modules internes de Resonant Lab ne nécessitent pas l'hébergement d'effets VST externes.
+Curve Pilot : rack hôte VST3. Modular : instrument VST3 ou autonome. Triple Disto : effet externe. Les modules internes de Modular ne nécessitent pas l'hébergement d'effets VST externes.
 
 L'interopérabilité repose sur VST3/JUCE : audio stéréo (source mono et traitement stéréo du rack), entrée MIDI, paramètres normalisés, playhead BPM/PPQ/lecture et sauvegarde complète de l'état. Aucun protocole privé requis.
 
-Identité conservée : fabricant Anks, code Arlc, produit ANKS Resonant Lab, racine d'état ANKS3. Métadonnées anksSuiteSchema=3, instrumentVersion=1.2.0-alpha.1. Anciennes sauvegardes sans rack : restauration sur le moteur classique. Sauvegarder ses projets avant remplacement du binaire et éviter deux versions Arlc simultanément scannées.
+Identité conservée : fabricant Anks, code Arlc, produit Modular, racine d'état ANKS3. Métadonnées anksSuiteSchema=3, instrumentVersion=1.2.0-alpha.1. Anciennes sauvegardes sans rack : restauration sur le moteur classique. Sauvegarder ses projets avant remplacement du binaire et éviter deux versions Arlc simultanément scannées.
 
 Tous les anciens IDs restent publiés et dans le même ordre. Les nouveaux paramètres sont ajoutés : rack_on (choix du moteur), rack_order (une des 24 permutations), waveform, puis m1_ à m4_ avec leurs types et réglages. Le numéro mN est l'identité de l'instance, jamais son emplacement visuel. Un déplacement modifie uniquement rack_order; une automation m1_cutoff suit l'instance 1. Remplacer son type ne redirige pas cette automation : elle reste stockée pour le filtre de l'instance.
 

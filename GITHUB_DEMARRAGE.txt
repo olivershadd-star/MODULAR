@@ -1,19 +1,6 @@
-ANKS RESONANT LAB V1.2 ALPHA — COMPILER DANS GITHUB
+MODULAR — COMPILATION WINDOWS
 
-1. Extraire le ZIP. Ouvrir le dossier contenant CMakeLists.txt et plugin.
-2. Creer le nouveau repository pour cette version.
-3. Add file > Upload files : glisser le CONTENU de ce dossier, puis Commit.
-4. Actions : choisir VST3 Windows. Le push doit lancer le build.
-5. Quand le build est vert, ouvrir son execution. Dans Artifacts,
-   telecharger ANKS-Resonant-Lab-V1-2-Alpha-Windows.
-6. Extraire l'artifact puis le ZIP Windows contenu dedans. Suivre
-   INSTALLATION.txt pour copier le dossier .vst3 entier dans Windows.
-
-Le workflow est fourni dans .github/workflows/build-vst3.yml.
-Une copie visible identique, build-vst3.yml, est aussi a la racine.
-Si le transfert web n'a pas ajoute .github et que le workflow n'apparait pas :
-Add file > Create new file > nommer .github/workflows/build-vst3.yml,
-y copier tout le contenu de la copie visible, puis Commit.
-
-Un build rouge : ouvrir l'etape en echec et garder le texte exact de
-l'erreur. Le rapport ANKS-Tests est aussi joint quand il est disponible.
+Ouvrir Actions > VST3 Windows > Run workflow, ou pousser les sources.
+Quand la compilation reussit, telecharger Modular-V1-4-Alpha-1-Windows
+puis extraire l'archive. Elle contient Modular.vst3 et Standalone/Modular.exe.
+Les mesures, rapports de tests et captures d'interface sont des artifacts separes.

@@ -1,4 +1,4 @@
-ANKS Resonant Lab 1.2 alpha 1 / JUCE 8.0.6 / GCC / Linux
+Modular 1.2 alpha 1 / JUCE 8.0.6 / GCC / Linux
 
 Test project /tmp/anks12_build
     Start 1: core
@@ -22,7 +22,7 @@ AddressSanitizer + UndefinedBehaviorSanitizer, detection des fuites desactivee :
 PASS: 75 ms clip gate / full-wet echo after note-off; echo timing and decay; 20 ms gate / granular startup, tail and controls; no hidden dry rescue; stereo multi-voice chorus, depth and speed; stereo through later blocks; callback invariance; three distinct distortion modes.
 
 Cibles finales compilees :
-[100%] Built target ANKSResonantLab_VST3
-[100%] Built target ANKSResonantLab_Standalone
+[100%] Built target Modular_VST3
+[100%] Built target Modular_Standalone
 
 Les essais Windows/Ableton/Curve Pilot et le controle a 300 % restent a effectuer.

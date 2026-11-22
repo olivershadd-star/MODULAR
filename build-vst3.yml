@@ -20,11 +20,11 @@ jobs:
           & $buildScript.FullName
           if ($LASTEXITCODE -ne 0) { throw 'Compilation ou tests en echec.' }
           $projectPath = $buildScript.DirectoryName
-          $pluginPath = Join-Path $projectPath 'build-win/ANKSResonantLab_artefacts/Release/VST3'
-          $stagePath = Join-Path $env:RUNNER_TEMP 'ANKS_Resonant_Lab_1_3_Alpha_4'
+          $pluginPath = Join-Path $projectPath 'build-win/Modular_artefacts/Release/VST3'
+          $stagePath = Join-Path $env:RUNNER_TEMP 'Modular_1_4_Alpha_1'
           New-Item -ItemType Directory -Force $stagePath | Out-Null
           Copy-Item -Path "$pluginPath/*.vst3" -Destination $stagePath -Recurse
-          $standalonePath = Join-Path $projectPath 'build-win/ANKSResonantLab_artefacts/Release/Standalone'
+          $standalonePath = Join-Path $projectPath 'build-win/Modular_artefacts/Release/Standalone'
           $appPath = Join-Path $stagePath 'Standalone'
           New-Item -ItemType Directory -Force $appPath | Out-Null
           Copy-Item -Path "$standalonePath/*.exe" -Destination $appPath
@@ -37,11 +37,11 @@ jobs:
           Copy-Item -Path (Join-Path $projectPath 'docs/DIAGNOSTIC_WINDOWS.txt') -Destination $diagnosticsPath
           $deliveryPath = Join-Path $env:GITHUB_WORKSPACE 'Livraison'
           New-Item -ItemType Directory -Force $deliveryPath | Out-Null
-          Compress-Archive -Path "$stagePath/*" -DestinationPath "$deliveryPath/ANKS_Resonant_Lab_V1_3_Alpha_4_Windows.zip"
+          Compress-Archive -Path "$stagePath/*" -DestinationPath "$deliveryPath/Modular_V1_4_Alpha_1_Windows.zip"
       - name: Telecharger le VST3
         uses: actions/upload-artifact@v4
         with:
-          name: ANKS-Resonant-Lab-V1-3-Alpha-4-Windows
+          name: Modular-V1-4-Alpha-1-Windows
           path: Livraison/*.zip
           if-no-files-found: error
       - name: Rapports de tests
@@ -55,6 +55,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ANKS-Audio-Performance-V1-3-Alpha-4
+          name: Modular-Audio-Performance-V1-4-Alpha-1
           path: '**/build-win/performance.csv'
           if-no-files-found: ignore
+
+      - name: Apercus interface Modular
+        uses: actions/upload-artifact@v4
+        with:
+          name: Modular-Interface-V1-4-Alpha-1
+          path: '**/build-win/Modular-preview*.png'
+          if-no-files-found: error

@@ -120,7 +120,7 @@ Les téléchargements de plusieurs archives ont échoué (503, accès refusé ou
 
 ## 6. Architecture de notre VST — proposition D
 
-Nom de travail : **ANKS Resonant Lab**. Ce nom peut changer. Cible initiale : Windows x64, VST3, Ableton Live 12.
+Nom de travail : **Modular**. Ce nom peut changer. Cible initiale : Windows x64, VST3, Ableton Live 12.
 
 ### A. Sources
 

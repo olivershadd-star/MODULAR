@@ -29,8 +29,8 @@ int main(int argc,char**argv){
  _mm_setcsr(_mm_getcsr()|0x8040);
 #endif
  bool full=false;std::string selected;FILE*dump=nullptr;for(int a=1;a<argc;++a){if(std::string(argv[a])=="--full")full=true;else if(std::string(argv[a])=="--scenario"&&a+1<argc)selected=argv[++a];else if(std::string(argv[a])=="--dump"&&a+1<argc){dump=std::fopen(argv[++a],"wb");if(!dump)return 2;}else return 2;}
- struct Scenario{const char*name;std::array<int,4>types;bool fm=false,topology=false,legacy=false,bypass=false;};
- const Scenario cases[]={{"empty",{0,0,0,0}},{"granular_semi_OFF",{1,4,4,9},false,false,false,true},{"resonator_two_granular",{1,4,4,0}},{"resonator_two_granular_semi",{1,4,4,9}},{"four_resonators",{1,1,1,1}},{"fm_res_gran_freeze_semi",{1,4,8,9},true},{"live_topology",{1,4,4,9},false,true},{"legacy_toggle",{1,4,4,9},false,false,true}};
+ struct Scenario{const char*name;std::array<int,6>types;bool fm=false,topology=false,legacy=false,bypass=false;};
+ const Scenario cases[]={{"fm_six_mixed",{1,4,9,10,12,13},true},{"six_resonators",{1,1,1,1,1,1}},{"empty",{0,0,0,0}},{"granular_semi_OFF",{1,4,4,9},false,false,false,true},{"resonator_two_granular",{1,4,4,0}},{"resonator_two_granular_semi",{1,4,4,9}},{"four_resonators",{1,1,1,1}},{"fm_res_gran_freeze_semi",{1,4,8,9},true},{"live_topology",{1,4,4,9},false,true},{"legacy_toggle",{1,4,4,9},false,false,true}};
  if(!selected.empty()){bool found=false;for(const auto&scenario:cases)found=found||selected==scenario.name;if(!found)return 2;}
  const std::vector<double>rates=full?std::vector<double>{44100,48000,96000}:std::vector<double>{48000};
  const std::vector<int>blocks=full?std::vector<int>{64,128,256}:std::vector<int>{128};
@@ -38,7 +38,7 @@ int main(int argc,char**argv){
  for(auto&scenario:cases)for(double sr:rates)for(int block:blocks)for(int count:{1,8,16}){
   if(!selected.empty()&&selected!=scenario.name)continue;
   auto e=std::make_unique<anks::Engine>();auto&p=e->parameters;p.rack.enabled=true;p.waveform=1;p.fm.enabled=scenario.fm;p.fm.feedback=.3;p.fm.modSustain=.5;
-  for(size_t i=0;i<4;++i){auto&m=p.rack.modules[i];m.type=scenario.types[i];m.on=!scenario.bypass||i==0;m.density=64;m.grainSize=.25;m.mix=.75;m.freezeHold=true;}
+  for(size_t i=0;i<6;++i){auto&m=p.rack.modules[i];m.type=scenario.types[i];m.on=!scenario.bypass||i==0;m.density=64;m.grainSize=.25;m.mix=.75;m.freezeHold=true;}
   e->prepare(sr);std::vector<double>times;std::vector<anks::Stereo>audio(size_t(block),anks::Stereo{});double noteMax=0,total=0,cpuTotal=0;int overruns=0,activePeak=0;
   const double deadline=1e6*block/sr;const int frames=int(sr),retrigger=int(sr*.5)/block*block;
   for(int offset=0;offset<frames;offset+=block){auto start=std::chrono::steady_clock::now();double cpuStart=cpuMicros();bool note=offset==0||offset==retrigger;

@@ -1,4 +1,4 @@
-# ANKS Resonant Lab — réalisation V0.3
+# Modular — réalisation V0.3
 
 Date : 2 novembre 2026. Auteur : ANKS.
 

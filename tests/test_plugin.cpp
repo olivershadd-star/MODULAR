@@ -5,8 +5,8 @@
 #include <thread>
 #include <future>
 void check(bool ok,const char*msg){if(!ok)throw std::runtime_error(msg);}
-void set(ResonantLab&p,const char*id,float v){auto*q=p.state.getParameter(id);q->setValueNotifyingHost(q->convertTo0to1(v));}
-float get(ResonantLab&p,const char*id){return p.state.getRawParameterValue(id)->load();}
+void set(ModularProcessor&p,const char*id,float v){auto*q=p.state.getParameter(id);q->setValueNotifyingHost(q->convertTo0to1(v));}
+float get(ModularProcessor&p,const char*id){return p.state.getRawParameterValue(id)->load();}
 class RackPlayHead final:public juce::AudioPlayHead{
 public: juce::Optional<PositionInfo>position;juce::Optional<PositionInfo>getPosition()const override{return position;}
  void set(double ppq,bool playing){PositionInfo p;p.setBpm(120);p.setPpqPosition(ppq);p.setIsPlaying(playing);position=p;}
@@ -14,7 +14,7 @@ public: juce::Optional<PositionInfo>position;juce::Optional<PositionInfo>getPosi
 juce::Component*findControl(juce::Component&root,const juce::String&id){for(int i=0;i<root.getNumChildComponents();++i){auto*c=root.getChildComponent(i);if(c->getComponentID()==id&&dynamic_cast<juce::Slider*>(c))return c;if(auto*match=findControl(*c,id))return match;}return nullptr;}
 int runTests(){
  juce::ScopedJuceInitialiser_GUI init;
- auto p=std::make_unique<ResonantLab>();set(*p,"rack_on",0);p->prepareToPlay(48000,512);
+ auto p=std::make_unique<ModularProcessor>();set(*p,"rack_on",0);p->prepareToPlay(48000,512);
  set(*p,"edit",0);p->editBodyParameter(1,0.25f);check(std::abs(get(*p,"a_brightness")-0.25f)<0.001f,"A edit");check(get(*p,"b_brightness")>0.5f,"B changed while editing A");
  set(*p,"edit",1);p->editBodyParameter(1,0.7f);check(std::abs(get(*p,"a_brightness")-0.25f)<0.001f,"A changed while editing B");
  set(*p,"edit",2);check(get(*p,"a_brightness")!=get(*p,"b_brightness"),"link activation destroyed difference");p->editBodyParameter(1,0.35f);check(std::abs(get(*p,"a_brightness")-get(*p,"b_brightness"))<1e-7f,"linked edit");
@@ -24,7 +24,7 @@ int runTests(){
  double power=0;for(int i=0;i<512;++i){if(i<96)check(audio.getSample(0,i)==0,"MIDI sample offset");else power+=std::abs(audio.getSample(0,i));}check(power>0,"no internal excitation");
  juce::MemoryOutputStream wav;int frames=4096;wav.write("RIFF",4);wav.writeInt(36+frames*2);wav.write("WAVEfmt ",8);wav.writeInt(16);wav.writeShort(1);wav.writeShort(1);wav.writeInt(48000);wav.writeInt(96000);wav.writeShort(2);wav.writeShort(16);wav.write("data",4);wav.writeInt(frames*2);for(int i=0;i<frames;++i)wav.writeShort(short(9000*std::sin(2*anks::pi*220*i/48000)));
  auto file=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("anks-v03-test",".wav");check(file.replaceWithData(wav.getData(),wav.getDataSize()),"write fixture");check(p->loadSample(file).isEmpty(),"load excitation");file.deleteFile();
- set(*p,"input",-3);set(*p,"output",6);juce::MemoryBlock saved;p->getStateInformation(saved);auto q=std::make_unique<ResonantLab>();q->setStateInformation(saved.getData(),int(saved.getSize()));check(std::abs(get(*q,"output")-6)<0.01f,"state parameters");check(q->sampleLabel()==p->sampleLabel(),"sample name restore");check(get(*q,"sample")>0.5f,"sample flag restore");
+ set(*p,"input",-3);set(*p,"output",6);juce::MemoryBlock saved;p->getStateInformation(saved);auto q=std::make_unique<ModularProcessor>();q->setStateInformation(saved.getData(),int(saved.getSize()));check(std::abs(get(*q,"output")-6)<0.01f,"state parameters");check(q->sampleLabel()==p->sampleLabel(),"sample name restore");check(get(*q,"sample")>0.5f,"sample flag restore");
  p->prepareToPlay(48000,512);q->prepareToPlay(48000,512);juce::AudioBuffer<float>left(2,512),right(2,512);juce::MidiBuffer m1,m2;m1.addEvent(juce::MidiMessage::noteOn(1,60,1.f),0);m2.addEvent(juce::MidiMessage::noteOn(1,60,1.f),0);p->processBlock(left,m1);q->processBlock(right,m2);double difference=0,total=0;for(int i=0;i<512;++i){difference+=std::abs(left.getSample(0,i)-right.getSample(0,i));total+=std::abs(left.getSample(0,i));}check(total>0.1&&difference<1e-5,"embedded WAV audio restore");
  // The same 32-sample PositionInfo forwarding used by Curve Pilot V2.
  RackPlayHead head;q->setPlayHead(&head);set(*q,"seq_on",1);set(*q,"seq_clock",0);set(*q,"seq_length",1);set(*q,"seq_division",3);set(*q,"seq_01_on",1);set(*q,"seq_01_note",60);set(*q,"seq_01_gate",25);set(*q,"release",0.01f);q->prepareToPlay(48000,32);
@@ -41,7 +41,7 @@ int runTests(){
  check(get(*q,"rack_on")==0,"legacy must keep classic sound");
  set(*p,"rack_on",1);set(*p,"m1_type",1);set(*p,"m1_b1_detune",123);set(*p,"m2_type",4);set(*p,"m2_pitch",7);p->swapRackSlots(0,1);auto ids=anks::rackOrders()[size_t(int(get(*p,"rack_order")))];check(ids[0]==1&&ids[1]==0&&get(*p,"m1_b1_detune")==123&&get(*p,"m2_pitch")==7,"move lost identity/parameters");
  auto recipe=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("anks-chain",".ankschain");check(p->saveRecipe(recipe,false),"save chain");
- {auto x=juce::XmlDocument::parse(recipe);x->setAttribute("schema",1);for(auto*e=x->getFirstChildElement();e;){auto*next=e->getNextElement();if(e->getStringAttribute("id").endsWith("_disto_mode"))x->removeChildElement(e,true);e=next;}check(recipe.replaceWithText(x->toString()),"write legacy chain fixture");}auto oldSource=q->sampleLabel();float root=get(*q,"root"),note=get(*q,"seq_01_note");check(q->loadRecipe(recipe,false),"load chain");check(q->sampleLabel()==oldSource&&get(*q,"root")==root&&get(*q,"seq_01_note")==note,"chain overwrote source or sequence");check(get(*q,"m2_pitch")==7&&get(*q,"m1_b1_detune")==123&&get(*q,"rack_order")==get(*p,"rack_order"),"chain restoration");recipe.deleteFile();
+ {auto x=juce::XmlDocument::parse(recipe);x->setAttribute("schema",1);for(auto*e=x->getFirstChildElement();e;){auto*next=e->getNextElement();if(e->getStringAttribute("id").endsWith("_disto_mode")||e->getStringAttribute("id").startsWith("m5_")||e->getStringAttribute("id").startsWith("m6_")||e->getStringAttribute("id").contains("_fx_"))x->removeChildElement(e,true);e=next;}check(recipe.replaceWithText(x->toString()),"write legacy chain fixture");}auto oldSource=q->sampleLabel();float root=get(*q,"root"),note=get(*q,"seq_01_note");check(q->loadRecipe(recipe,false),"load chain");check(q->sampleLabel()==oldSource&&get(*q,"root")==root&&get(*q,"seq_01_note")==note,"chain overwrote source or sequence");check(get(*q,"m2_pitch")==7&&get(*q,"m1_b1_detune")==123&&get(*q,"rack_order")==get(*p,"rack_order"),"chain restoration");recipe.deleteFile();
  recipe=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("anks-module",".anksmod");check(p->saveRecipe(recipe,true,1)&&q->loadRecipe(recipe,true,3),"module preset remap");check(get(*q,"m4_type")==4&&get(*q,"m4_pitch")==7,"module preset did not target selected instance");recipe.replaceWithText("<ANKS_RECIPE schema=\"1\" kind=\"module\"><PARAM id=\"pitch\" value=\"9999\"/></ANKS_RECIPE>");check(!q->loadRecipe(recipe,true,3)&&get(*q,"m4_pitch")==7,"bad recipe partially applied");recipe.deleteFile();
  juce::MemoryBlock rackState;q->getStateInformation(rackState);p->setStateInformation(rackState.getData(),int(rackState.getSize()));check(get(*p,"m4_type")==4&&get(*p,"m4_pitch")==7&&get(*p,"rack_on")==1,"rack state roundtrip");
  q->convertLegacy();check(get(*q,"rack_on")==1&&get(*q,"m1_type")==1&&std::abs(get(*q,"m1_b1_brightness")-get(*q,"a_brightness"))<1e-6,"classic conversion");
@@ -75,11 +75,17 @@ int runTests(){
  check(q->loadFactory(0).isEmpty()&&get(*q,"fm_on")==0&&get(*q,"sample")==1,"factory load did not select single WAV source");
  // Representative compact default editor, no long scrolling rack.
  q->loadFactory(4);for(int i=1;i<=4;++i)set(*q,("m"+juce::String(i)+"_on").toRawUTF8(),1);set(*q,"m1_type",1);set(*q,"m2_type",4);set(*q,"m3_type",5);set(*q,"m4_type",6);set(*q,"rack_on",1);
- if(const char*preview=std::getenv("ANKS_UI_PREVIEW")){
-  std::unique_ptr<juce::AudioProcessorEditor>editor(q->createEditor());editor->setSize(std::getenv("ANKS_UI_MINIMUM")?900:1060,std::getenv("ANKS_UI_MINIMUM")?620:700);if(std::getenv("ANKS_UI_SEQUENCE"))for(int i=0;i<editor->getNumChildComponents();++i)if(auto*view=dynamic_cast<juce::Viewport*>(editor->getChildComponent(i)))view->setViewPosition(0,999999);
+ if(const char*preview=std::getenv("ANKS_UI_PREVIEW")){set(*q,"m5_type",12);set(*q,"m6_type",13);
+  std::unique_ptr<juce::AudioProcessorEditor>editor(q->createEditor());editor->setSize(std::getenv("ANKS_UI_MINIMUM")?1000:1180,std::getenv("ANKS_UI_MINIMUM")?760:850);if(std::getenv("ANKS_UI_SEQUENCE"))for(int i=0;i<editor->getNumChildComponents();++i)if(auto*view=dynamic_cast<juce::Viewport*>(editor->getChildComponent(i)))view->setViewPosition(0,999999);
   juce::Image image(juce::Image::ARGB,editor->getWidth(),editor->getHeight(),true);juce::Graphics g(image);editor->paintEntireComponent(g,true);
   juce::File fileOut{juce::String(preview)};fileOut.deleteFile();auto stream=fileOut.createOutputStream();check(stream!=nullptr,"preview output");check(juce::PNGImageFormat{}.writeImageToStream(image,*stream),"preview rendering");
  }
+ // Six-slot identity, complete state, old raw orders and old schema-3 chains.
+ check(p->getName()=="Modular","product name");
+ check(p->state.getParameter("m5_type")->getParameterIndex()>p->state.getParameter("fm_amp_sustain")->getParameterIndex(),"new slot inserted into old indices");
+ set(*p,"rack_order",0);set(*p,"m5_type",10);set(*p,"m6_type",13);set(*p,"m6_fx_frequency",330);p->swapRackSlots(0,5);auto six=anks::rackOrders()[size_t(int(get(*p,"rack_order")))];check(six[0]==5&&six[5]==0,"six slot swap");
+ p->getStateInformation(rackState);q->setStateInformation(rackState.getData(),int(rackState.getSize()));check(get(*q,"m6_type")==13&&std::abs(get(*q,"m6_fx_frequency")-330)<.01f,"six slot state");
+ recipe=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("modular-old-chain",".ankschain");set(*p,"rack_order",7);check(p->saveRecipe(recipe,false),"old chain fixture");{auto x=juce::XmlDocument::parse(recipe);x->setAttribute("schema",3);for(auto*e=x->getFirstChildElement();e;){auto*next=e->getNextElement();auto id=e->getStringAttribute("id");if(id.startsWith("m5_")||id.startsWith("m6_")||id.contains("_fx_"))x->removeChildElement(e,true);e=next;}check(recipe.replaceWithText(x->toString()),"old chain write");}check(q->loadRecipe(recipe,false)&&get(*q,"rack_order")==7&&get(*q,"m5_type")==0&&get(*q,"m6_type")==0,"old chain migration left stale E/F");recipe.deleteFile();
  // Callback timing remains separate from the Windows all-core CPU percentage.
  p->prepareToPlay(48000,128);juce::AudioBuffer<float>timed(2,128);juce::MidiBuffer timedMidi;p->processBlock(timed,timedMidi);check(std::isfinite(p->audioLoad.load())&&p->audioLoad.load()>=0&&p->audioLoadPeak.load()>=p->audioLoad.load(),"callback timing invalid");
  std::promise<void>held,release;auto heldFuture=held.get_future();auto releaseFuture=release.get_future();std::thread locker([&]{const juce::ScopedLock lock(p->getCallbackLock());held.set_value();releaseFuture.wait();});heldFuture.wait();p->processBlock(timed,timedMidi);bool blocked=p->blockedCallbacks.load()==1&&timed.getMagnitude(0,128)==0;release.set_value();locker.join();check(blocked,"contended callback not reported or not silent");

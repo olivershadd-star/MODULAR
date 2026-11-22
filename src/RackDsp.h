@@ -35,7 +35,7 @@ public:
  bool isSuspended()const{return sleeping;}
  void setGate(bool gate){semi.setGate(gate);}
  void prepare(double sr,bool right=false){shifter.prepare(sr);freeze.prepare();semi.prepare(sr);rightChannel=right;rate=sr;slew=1-std::exp(-1/(sr*.01));for(auto&r:body)r.prepare(sr);history.prepare(size_t(sr*2.1)+8);reset();}
- void reset(){sleeping=false;shifter.reset();if(params.type==8)freeze.reset();semi.reset();if(params.type==1)for(auto&r:body)r.reset();for(auto&e:eq)e.reset();history.reset();for(auto&g:grains)g.active=false;sv1=sv2=toneState=0;phase=0;spawn=0;firstGrain=true;random=0x9182ab31u;}
+ void reset(){sleeping=false;shifter.reset();if(params.type==8)freeze.reset();semi.reset();if(params.type==1)for(auto&r:body)r.reset();for(auto&e:eq)e.reset();history.reset();for(auto&g:grains)g.active=false;sv1=sv2=toneState=0;phase=0;fxSin=0;fxCos=1;fxState.fill(0);fxFeedbackState=fxHeld=0;fxCounter=0;fxRenorm=0;spawn=0;firstGrain=true;random=0x9182ab31u;}
  void configure(const RackParameters&p,double hz,double bpm,double ppq,bool first=false,bool updateClock=true,const RackModule*tuningReference=nullptr){
   const bool resume=sleeping&&p.on&&p.type!=0;
   if(resume){reset();first=true;}
@@ -43,7 +43,9 @@ public:
   std::array<bool,2>tuneBody{};
   if(p.type==1)for(size_t i=0;i<2;++i){const auto&a=p.body[i];const auto&b=params.body[i];tuneBody[i]=first||hz!=frequency||a.decay!=b.decay||a.brightness!=b.brightness||a.position!=b.position||a.detune!=b.detune||a.odd!=b.odd;}
   const bool updateEq=first||p.type!=params.type||p.filterMode!=params.filterMode||p.eqFrequency!=params.eqFrequency||p.eqGain!=params.eqGain||p.eqQ!=params.eqQ;
+  if(first||p.fxFrequency!=params.fxFrequency||p.rate!=params.rate||p.type!=params.type){double f=p.type==12?p.rate:p.fxFrequency;double a=2*pi*std::min(f,rate*.45)/rate;fxRotateSin=std::sin(a);fxRotateCos=std::cos(a);}
   frequency=hz;
+  if(first||p.fxBits!=params.fxBits)fxScale=std::exp2(p.fxBits-1);
   if(first||p.drive!=params.drive)driveTarget=dbGain(p.drive);
   if(first||p.level!=params.level)levelTarget=dbGain(p.level);
   if(first||p.tone!=params.tone)toneCoefficient=1-std::exp(-2*pi*std::clamp(p.tone,30.,rate*.45)/rate);
@@ -53,7 +55,7 @@ public:
   if(updateEq&&p.type==2&&p.filterMode==4)for(size_t i=0;i<4;++i)eq[i].configure(rate,p.eqFrequency[i],p.eqGain[i],p.eqQ[i]);
   for(size_t i=0;i<2;++i){bodyEnabledTarget[i]=p.body[i].on?1:0;if(first){bodyLevel[i]=bodyLevelTarget[i];bodyEnabled[i]=bodyEnabledTarget[i];}}
   speed=p.lfoSync?bpm/(60*p.lfoBeats):p.lfoRate;if(p.lfoSync&&updateClock)phase=ppq/p.lfoBeats-std::floor(ppq/p.lfoBeats);
-  target=p.on&&p.type!=0?1:0;if(first){wet=target;mix=p.mix;balance=p.balance;cutoff=p.cutoff;drive=dbGain(p.drive);level=dbGain(p.level);delay=p.time*rate;sleeping=target==0;if(resume)wet=0;}
+  target=p.on&&p.type!=0?1:0;if(first){wet=target;mix=p.mix;balance=p.balance;cutoff=p.cutoff;drive=dbGain(p.drive);level=dbGain(p.level);delay=p.type==13?rate/std::clamp(p.fxFrequency,20.,4000.):p.time*rate;sleeping=target==0;if(resume)wet=0;}
  }
  double next(double x){
   if(params.type==0||sleeping)return x;
@@ -77,6 +79,12 @@ public:
    case ModuleType::FrequencyShifter:y=shifter.next(x,params.shiftHz);alignedDry=shifter.dry();break;
    case ModuleType::SpectralFreeze:y=freeze.next(x,params.freezeHold);alignedDry=freeze.dry();break;
    case ModuleType::SemiModular:y=semi.next(x,params);break;
+   case ModuleType::RingMod:{advanceFx();y=x*fxSin;break;}
+   case ModuleType::BitCrusher:{if(--fxCounter<=0){fxCounter=std::max(1,int(params.fxHold));fxHeld=std::round(std::clamp(x,-1.,1.)*fxScale)/fxScale;}y=fxHeld;break;}
+   case ModuleType::Phaser:{
+    advanceFx();if((fxCounter++&31)==0){double f=std::clamp(params.fxFrequency*std::exp2(params.depth*3*fxSin),20.,rate*.4);double k=std::tan(pi*f/rate);fxCoefficient=(1-k)/(1+k);}
+    double v=x+std::tanh(fxFeedbackState)*params.fxFeedback;for(auto&z:fxState){double out=-fxCoefficient*v+z;z=v+fxCoefficient*out;v=out;}fxFeedbackState=v;y=(x+v)*.5;break;}
+   case ModuleType::Comb:{double requested=rate/std::clamp(params.fxFrequency,20.,4000.);delay+=slew*(requested-delay);y=history.behind(delay);history.push(x+std::tanh(y)*params.fxFeedback);break;}
    case ModuleType::Granular:{
     history.push(x);
     // Capture real recorded fragments. Never start a grain in negative/unwritten history.
@@ -112,6 +120,8 @@ public:
   return std::clamp(x+wet*(mix*(y-x)+(level-1)*(x+mix*(y-x))),-16.,16.);
  }
 private:
+ void advanceFx(){double s=fxSin*fxRotateCos+fxCos*fxRotateSin;fxCos=fxCos*fxRotateCos-fxSin*fxRotateSin;fxSin=s;if((++fxRenorm&4095)==0){double inv=1/std::sqrt(std::max(1e-20,fxSin*fxSin+fxCos*fxCos));fxSin*=inv;fxCos*=inv;}}
+ std::array<double,6>fxState{};double fxSin=0,fxCos=1,fxRotateSin=0,fxRotateCos=1,fxCoefficient=0,fxFeedbackState=0,fxHeld=0,fxScale=512;int fxCounter=0;unsigned fxRenorm=0;
  double rand01(){random^=random<<13;random^=random>>17;random^=random<<5;return random/4294967295.;}
  double driveTarget=2,levelTarget=1,toneCoefficient=.5;std::array<double,2>bodyLevel{{1,1}},bodyLevelTarget{{1,1}},bodyEnabled{{1,1}},bodyEnabledTarget{{1,1}};
  bool rightChannel=false,firstGrain=true,sleeping=false;
@@ -137,6 +147,7 @@ inline double rackTailSeconds(const RackConfig&r){
   if(p.type==5){double repeats=p.feedback<.001?1:1+std::log(1e-5)/std::log(std::min(.95,p.feedback));seconds+=std::min(30.,p.time*repeats);}
   else if(p.type==4)seconds+=p.position+p.grainSize+.05;
   else if(p.type==6)seconds+=.08;
+  else if(p.type==13){double repeats=1+std::log(1e-5)/std::log(std::max(.001,std::abs(p.fxFeedback)));seconds+=std::min(4.,repeats/std::max(20.,p.fxFrequency));}
   else if(p.type==7)seconds+=.01;
   else if(p.type==8)seconds+=p.freezeHold?30.:.05;
   else if(p.type==9)seconds+=p.smRelease;

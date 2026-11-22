@@ -2,7 +2,7 @@
 #include <array>
 namespace anks {
 struct RackField {const char*id;const char*label;float min,max,step,initial;int group;float skew;};
-inline constexpr std::array<RackField,70> rackFields{{
+inline constexpr std::array<RackField,74> rackFields{{
  {"on","Actif",0.0f,1.0f,1.0f,1.0f,0,1.0f},
  {"mix","Melange",0.0f,1.0f,0.001f,0.8f,0,1.0f},
  {"level","Sortie dB",-24.0f,12.0f,0.1f,0.0f,0,1.0f},
@@ -73,5 +73,9 @@ inline constexpr std::array<RackField,70> rackFields{{
  {"sm_patch2_source","Patch 2 source : 0 off 1 LFO 2 EG 3 suivi",0.0f,3.0f,1.0f,1.0f,9,1.0f},
  {"sm_patch2_dest","Patch 2 destination : 0 VCF 1 VCA",0.0f,1.0f,1.0f,0.0f,9,1.0f},
  {"sm_patch2_amount","Patch 2 dosage",-1.0f,1.0f,0.001f,0.1f,9,1.0f},
+ {"fx_frequency","Frequence FX Hz",0.1f,4000.f,0.1f,220.f,100,0.3f},
+ {"fx_feedback","Feedback FX",-0.95f,0.95f,0.001f,0.3f,100,1.f},
+ {"fx_bits","Resolution bits",2.f,16.f,0.1f,10.f,111,1.f},
+ {"fx_hold","Reduction echantillonnage",1.f,64.f,1.f,4.f,111,0.5f},
 }};
 }

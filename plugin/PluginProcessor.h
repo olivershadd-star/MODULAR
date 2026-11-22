@@ -4,10 +4,10 @@
 #include "Sequencer.h"
 #include "RackSchema.h"
 #include "FactorySources.h"
-class ResonantLab final:public juce::AudioProcessor {
+class ModularProcessor final:public juce::AudioProcessor {
 public:
- ResonantLab();
- const juce::String getName()const override{return "ANKS Resonant Lab";}
+ ModularProcessor();
+ const juce::String getName()const override{return "Modular";}
  void prepareToPlay(double,int)override;void releaseResources()override{engine.panic();sequence.reset();}
  bool isBusesLayoutSupported(const BusesLayout&l)const override{return l.getMainOutputChannelSet()==juce::AudioChannelSet::stereo();}
  bool acceptsMidi()const override{return true;}bool producesMidi()const override{return false;}
@@ -35,7 +35,7 @@ private:
  bool restoreState(const void*,int);void readRack();
  std::array<std::atomic<float>*,11>fmPointers{};
  std::atomic<float>*rackEnabled=nullptr,*rackOrder=nullptr,*wavePointer=nullptr;
- std::array<std::atomic<float>*,4>rackTypes{};std::array<std::array<std::atomic<float>*,anks::rackFields.size()>,4>rackPointers{};
+ std::array<std::atomic<float>*,6>rackTypes{};std::array<std::array<std::atomic<float>*,anks::rackFields.size()>,6>rackPointers{};
  double freePpq=0,audioRate=48000;
  static juce::AudioProcessorValueTreeState::ParameterLayout layout();
  float value(const char*id)const{return state.getRawParameterValue(id)->load();}

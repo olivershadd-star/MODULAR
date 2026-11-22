@@ -3,7 +3,7 @@
 class SequencePanel final:public juce::Component,private juce::Timer{
  using State=juce::AudioProcessorValueTreeState;
 public:
- explicit SequencePanel(ResonantLab&p):processor(p){
+ explicit SequencePanel(ModularProcessor&p):processor(p){
   addAndMakeVisible(enabled);enabled.setButtonText("SEQUENCEUR ACTIF");enabledAttachment=std::make_unique<State::ButtonAttachment>(p.state,"seq_on",enabled);
   addAndMakeVisible(clock);clock.addItem("Hote",1);clock.addItem("Interne",2);clockAttachment=std::make_unique<State::ComboBoxAttachment>(p.state,"seq_clock",clock);
   addAndMakeVisible(run);run.setClickingTogglesState(true);runAttachment=std::make_unique<State::ButtonAttachment>(p.state,"seq_run",run);
@@ -32,7 +32,7 @@ public:
   for(int i=0;i<16;++i){auto r=cell(i);stepOn[size_t(i)].setBounds(r.getX()+2,r.getY()+1,r.getWidth()-4,24);for(int k=0;k<3;++k)values[size_t(i)][size_t(k)].setBounds(r.getX()+21,r.getY()+28+k*29,r.getWidth()-24,25);}
  }
 private:
- ResonantLab&processor;juce::ToggleButton enabled;juce::TextButton run;juce::ComboBox clock,division;juce::Slider tempo,length,channel;juce::Label status;std::array<juce::Label,6>labels;
+ ModularProcessor&processor;juce::ToggleButton enabled;juce::TextButton run;juce::ComboBox clock,division;juce::Slider tempo,length,channel;juce::Label status;std::array<juce::Label,6>labels;
  std::unique_ptr<State::ButtonAttachment>enabledAttachment,runAttachment;std::unique_ptr<State::ComboBoxAttachment>clockAttachment,divisionAttachment;std::unique_ptr<State::SliderAttachment>tempoAttachment,lengthAttachment,channelAttachment;
  std::array<juce::ToggleButton,16>stepOn;std::array<std::unique_ptr<State::ButtonAttachment>,16>stepOnAttachment;
  std::array<std::array<juce::Slider,3>,16>values;std::array<std::array<std::unique_ptr<State::SliderAttachment>,3>,16>valueAttachments;
