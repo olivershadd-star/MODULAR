@@ -38,6 +38,13 @@ jobs:
           $deliveryPath = Join-Path $env:GITHUB_WORKSPACE 'Livraison'
           New-Item -ItemType Directory -Force $deliveryPath | Out-Null
           Compress-Archive -Path "$stagePath/*" -DestinationPath "$deliveryPath/Modular_V1_4_Alpha_1_Windows.zip"
+      - name: Apercu pour verification visuelle
+        shell: pwsh
+        run: |
+          $preview = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Filter 'Modular-preview.png' | Select-Object -First 1
+          Write-Host 'MODULAR_UI_PNG_BASE64_START'
+          Write-Host ([Convert]::ToBase64String([IO.File]::ReadAllBytes($preview.FullName)))
+          Write-Host 'MODULAR_UI_PNG_BASE64_END'
       - name: Telecharger le VST3
         uses: actions/upload-artifact@v4
         with:

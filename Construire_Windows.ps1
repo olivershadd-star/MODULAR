@@ -15,10 +15,12 @@ if (-not (Test-Path (Join-Path $juce 'CMakeLists.txt'))) {
 }
 cmake -S . -B build-win -A x64 -DANKS_BUILD_PLUGIN=ON "-DANKS_JUCE_PATH=$juce"
 if ($LASTEXITCODE -ne 0) { throw 'Configuration echouee. Verifier Visual Studio C++ et le SDK Windows.' }
-cmake --build build-win --config Release --target test_six_slots test_core test_bypass_clicks test_realtime bench_audio test_fm test_creative test_effects test_rack test_sequencer test_audio_io test_plugin Modular_VST3 Modular_Standalone
+cmake --build build-win --config Release --target test_six_slots test_core test_bypass_clicks test_realtime bench_audio test_fm test_creative test_effects test_rack test_sequencer test_audio_io test_plugin
 if ($LASTEXITCODE -ne 0) { throw 'Compilation echouee.' }
 ctest --test-dir build-win -C Release --output-on-failure
 if ($LASTEXITCODE -ne 0) { throw 'Les tests ont echoue.' }
+cmake --build build-win --config Release --target Modular_VST3 Modular_Standalone
+if ($LASTEXITCODE -ne 0) { throw 'Compilation des produits echouee.' }
 & (Join-Path $PSScriptRoot 'build-win/Release/bench_audio.exe') --full | Out-File -Encoding utf8 (Join-Path $PSScriptRoot 'build-win/performance.csv')
 if ($LASTEXITCODE -ne 0) { throw 'Le banc audio a echoue.' }
 $plugin = Get-ChildItem -Path 'build-win/Modular_artefacts/Release/VST3' -Directory -Filter '*.vst3' | Select-Object -First 1
