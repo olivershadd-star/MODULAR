@@ -1,6 +1,6 @@
-MODULAR 1.4 ALPHA 2 — WINDOWS x64
+MODULAR 1.4 ALPHA 3 — WINDOWS x64
 
-Telecharger Modular-V1-4-Alpha-2-Windows dans les artifacts du workflow VST3 Windows,
+Telecharger Modular-V1-4-Alpha-3-Windows dans les artifacts du workflow VST3 Windows,
 puis extraire le ZIP Windows qui s'y trouve.
 
 1. Fermer les hotes et sauvegarder une copie des projets existants.

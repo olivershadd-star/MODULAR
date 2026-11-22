@@ -3,7 +3,7 @@
 # ANKS LABS / MODULAR
 ### HYBRID SYNTHESIS · RESONANCE · DSP LAB
 
-**1.4 alpha 2 — six emplacements, treize traitements**
+**1.4 alpha 3 — six emplacements, treize traitements**
 
 **BUILD. BREAK. REWIRE. LISTEN.**
 
@@ -17,7 +17,9 @@ Modular est un instrument C++17 / JUCE 8.0.6, VST3 et application autonome Windo
 
 Noir graphite, rouge profond, accents jaune mat et blanc cassé. Logo géométrique ANKS, circuits gravés discrets et potards à traits fins.
 
-La fenêtre s’ouvre au maximum à 960×640, et plus petite si nécessaire pour tenir dans la zone de travail de l’écran (coordonnées logiques tenant compte du DPI Windows). La barre de l’application autonome propose **réduire, agrandir/restaurer et fermer**. Le clavier reste fixé en bas. La zone de travail défile verticalement si nécessaire ; les six modules passent de deux colonnes à une colonne sur les fenêtres étroites. Les réglages et le séquenceur restent accessibles dans cette zone sans devoir déplacer la fenêtre hors écran. L’agrandissement utilise l’écran courant et les changements de moniteur réévaluent la place disponible. Les boutons de la fenêtre d’un VST3 restent gérés par l’hôte.
+Une seule page affiche les six modules, les réglages de source, le séquenceur et le clavier. Les six cadres sont identiques, en grille fixe de deux colonnes et trois rangées. Tous les potards utilisent la même cellule de 70×88 dans le dessin de référence, quelle que soit la quantité de commandes du module. Les cases non utilisées restent libres. La page entière est mise à l’échelle uniformément pour entrer dans la fenêtre ; elle ne défile pas et les modules ne sont pas redimensionnés séparément.
+
+La fenêtre s’ouvre au maximum à 960×640, ou plus petite selon l’écran. La barre de l’application autonome conserve **réduire, agrandir/restaurer et fermer**. Le clavier reste fixé en bas et la page est cadrée au-dessus, avec des marges pour empêcher tout recouvrement. Les panneaux secondaires FM et de détails gardent les mêmes potards et la même échelle que la page. Sur une petite fenêtre, tous les contrôles de la page diminuent ensemble.
 
 Le compteur Audio indique le temps de calcul par rapport au budget du bloc. Pic et retards repartent de zéro à la préparation audio ; ce compteur ne mesure pas les pertes du pilote. Les modules OFF suspendent leur DSP après le fondu. ON repart avec une mémoire propre. Les raccords granulaires de l’alpha précédente sont conservés.
 
@@ -55,6 +57,6 @@ Les indices et identifiants des anciens paramètres restent en place, les nouvea
 
 ## Compilation et vérification
 
-Lancer `Construire_Windows.ps1` avec CMake et Visual Studio C++/SDK Windows, ou le workflow **VST3 Windows**. JUCE 8.0.6 est épinglé à son commit. L’artifact **Modular-V1-4-Alpha-2-Windows** contient `Modular.vst3`, `Standalone/Modular.exe` et les diagnostics. Les rapports de tests, mesures et deux aperçus de l’interface sont publiés séparément.
+Lancer `Construire_Windows.ps1` avec CMake et Visual Studio C++/SDK Windows, ou le workflow **VST3 Windows**. JUCE 8.0.6 est épinglé à son commit. L’artifact **Modular-V1-4-Alpha-3-Windows** contient `Modular.vst3`, `Standalone/Modular.exe` et les diagnostics. Les rapports de tests, mesures et deux aperçus de l’interface sont publiés séparément.
 
-Les tests couvrent le moteur, le séquenceur, les effets, la FM, le vrai bypass des treize traitements, les 720 ordres, la conservation des 24 anciens ordres, les mémoires stéréo, l’absence d’allocation pendant le rendu et les presets du plugin. Le banc inclut FM + six traitements mixtes et six résonateurs. Six emplacements ne garantissent pas six traitements lourds sans dépassement sur tout PC : le buffer, la polyphonie, les queues et les réglages comptent. Voir [les changements](docs/EVOLUTION_V1_4_ALPHA_2.md) et les protocoles dans `docs/PERFORMANCES.md`.
+Les tests couvrent le moteur, le séquenceur, les effets, la FM, le vrai bypass des treize traitements, les 720 ordres, la conservation des 24 anciens ordres, les mémoires stéréo, l’absence d’allocation pendant le rendu et les presets du plugin. Le banc inclut FM + six traitements mixtes et six résonateurs. Six emplacements ne garantissent pas six traitements lourds sans dépassement sur tout PC : le buffer, la polyphonie, les queues et les réglages comptent. Voir [les changements](docs/EVOLUTION_V1_4_ALPHA_3.md) et les protocoles dans `docs/PERFORMANCES.md`.

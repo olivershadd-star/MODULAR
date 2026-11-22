@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "WindowLayout.h"
+#include "RackEditor.h"
 #include <iostream>
 #include <stdexcept>
 #include <cstdlib>
@@ -16,12 +17,18 @@ juce::Component*findControl(juce::Component&root,const juce::String&id){for(int 
 juce::Component*findAny(juce::Component&root,const juce::String&id){if(root.getComponentID()==id)return &root;for(int i=0;i<root.getNumChildComponents();++i)if(auto*c=findAny(*root.getChildComponent(i),id))return c;return nullptr;}
 void checkWindowLayout(ModularProcessor&p){
  for(auto area:{juce::Rectangle<int>{0,0,1366,728},juce::Rectangle<int>{0,0,1920,1040},juce::Rectangle<int>{-1280,100,1280,680},juce::Rectangle<int>{1920,0,1024,560},juce::Rectangle<int>{0,0,640,400}}){auto size=modular_ui::initialEditorSize(area);check(size.x<area.getWidth()&&size.y+32<area.getHeight(),"initial window does not fit work area");auto fitted=modular_ui::fittedWindow({area.getX()-100,area.getY()-100,1800,1200},area);check(area.contains(fitted),"window clipping on laptop/secondary screen");}
+ float previousTypes[6];const int types[]={1,4,6,7,8,9};for(int i=0;i<6;++i){auto id="m"+juce::String(i+1)+"_type";previousTypes[i]=get(p,id.toRawUTF8());set(p,id.toRawUTF8(),float(types[i]));}
  std::unique_ptr<juce::AudioProcessorEditor>editor(p.createEditor());editor->setVisible(true);
+ auto checkSiblings=[](juce::Component&parent){for(int i=0;i<parent.getNumChildComponents();++i){auto*a=parent.getChildComponent(i);if(!a->isVisible())continue;check(parent.getLocalBounds().contains(a->getBounds()),"control outside its panel");for(int j=i+1;j<parent.getNumChildComponents();++j){auto*b=parent.getChildComponent(j);if(b->isVisible())check(!a->getBounds().intersects(b->getBounds()),"controls overlap");}}};
  for(auto size:{juce::Point<int>{480,360},juce::Point<int>{760,480},juce::Point<int>{960,600},juce::Point<int>{1366,650},juce::Point<int>{1920,980}}){
-  editor->setSize(size.x,size.y);auto*keys=findAny(*editor,"piano_keyboard");auto*view=dynamic_cast<juce::Viewport*>(findAny(*editor,"workspace_scroll"));check(keys&&view,"keyboard or workspace missing");auto keyBounds=editor->getLocalArea(keys,keys->getLocalBounds());check(editor->getLocalBounds().contains(keyBounds)&&keyBounds.getHeight()>=30,"keyboard clipped by window");check(editor->getLocalBounds().contains(editor->getLocalArea(view,view->getLocalBounds())),"workspace outside editor");
-  auto*content=view->getViewedComponent();for(int i=0;i<6;++i){auto*slot=findAny(*content,"module_slot_"+juce::String(i));check(slot&&content->getLocalBounds().contains(slot->getBounds()),"module outside scrollable workspace");}
-  view->setViewPosition(0,content->getHeight());auto*seq=findAny(*content,"sequence_panel");check(seq&&view->getViewArea().contains(seq->getBounds()),"sequencer unreachable at end of workspace");check(editor->getLocalArea(keys,keys->getLocalBounds())==keyBounds,"workspace scroll moved keyboard");view->setViewPosition(0,0);
+  editor->setSize(size.x,size.y);auto*keys=findAny(*editor,"piano_keyboard");auto*canvas=findAny(*editor,"rack_canvas");auto*page=findAny(*editor,"rack_page");check(keys&&canvas&&page,"single-page controls missing");check(!findAny(*editor,"workspace_scroll"),"workspace still scrolls");
+  auto keyBounds=editor->getLocalArea(keys,keys->getLocalBounds());check(editor->getLocalBounds().contains(keyBounds)&&keyBounds.getHeight()>=30,"keyboard clipped by window");
+  auto canvasArea=editor->getLocalArea(canvas,canvas->getLocalBounds().toFloat());check(juce::Rectangle<float>(0,0,float(size.x),float(size.y-45)).expanded(.01f).contains(canvasArea),"single page outside window");
+  juce::Rectangle<int>reference;for(int i=0;i<6;++i){auto*slot=findAny(*editor,"module_slot_"+juce::String(i));check(slot,"module missing");if(i==0)reference=slot->getLocalBounds();else check(slot->getLocalBounds()==reference,"module frames differ in size");check(editor->getLocalBounds().toFloat().contains(editor->getLocalArea(slot,slot->getLocalBounds().toFloat())),"module clipped");checkSiblings(*slot);}
+  auto*seq=findAny(*editor,"sequence_panel");check(seq&&editor->getLocalBounds().toFloat().contains(editor->getLocalArea(seq,seq->getLocalBounds().toFloat())),"sequencer clipped");checkSiblings(*page);checkSiblings(*seq);
+  std::function<void(juce::Component&)>checkKnobs=[&](juce::Component&parent){for(int i=0;i<parent.getNumChildComponents();++i){auto*c=parent.getChildComponent(i);if(auto*k=dynamic_cast<ParamKnob*>(c)){if(k->isVisible())check(k->getWidth()==knobWidth&&k->getHeight()==knobHeight,"rotary controls differ in size");}else checkKnobs(*c);}};checkKnobs(*canvas);
  }
+ for(int i=0;i<6;++i){auto id="m"+juce::String(i+1)+"_type";set(p,id.toRawUTF8(),previousTypes[i]);}
  class Frame final:public juce::DocumentWindow{public:Frame():DocumentWindow("Modular",juce::Colour(0xff111114),0,false){}void closeButtonPressed()override{}};
  juce::Component screen;screen.setSize(1366,728);screen.setVisible(true);Frame frame;screen.addAndMakeVisible(frame);modular_ui::enableWindowControls(frame);check(frame.getCloseButton()&&frame.getMinimiseButton()&&frame.getMaximiseButton(),"window control missing");
  frame.setContentNonOwned(editor.get(),false);frame.setBounds(50,40,960,640);frame.maximiseButtonPressed();check(frame.isFullScreen()&&screen.getLocalBounds().contains(frame.getBounds()),"maximise escapes work area");auto*keys=findAny(*editor,"piano_keyboard");check(editor->getLocalBounds().contains(editor->getLocalArea(keys,keys->getLocalBounds())),"maximise clipped keyboard");frame.maximiseButtonPressed();check(!frame.isFullScreen(),"restore did not exit maximised mode");frame.clearContentComponent();

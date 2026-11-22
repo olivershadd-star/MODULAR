@@ -21,7 +21,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Compilation ou tests en echec.' }
           $projectPath = $buildScript.DirectoryName
           $pluginPath = Join-Path $projectPath 'build-win/Modular_artefacts/Release/VST3'
-          $stagePath = Join-Path $env:RUNNER_TEMP 'Modular_1_4_Alpha_2'
+          $stagePath = Join-Path $env:RUNNER_TEMP 'Modular_1_4_Alpha_3'
           New-Item -ItemType Directory -Force $stagePath | Out-Null
           Copy-Item -Path "$pluginPath/*.vst3" -Destination $stagePath -Recurse
           $standalonePath = Join-Path $projectPath 'build-win/Modular_artefacts/Release/Standalone'
@@ -37,7 +37,7 @@ jobs:
           Copy-Item -Path (Join-Path $projectPath 'docs/DIAGNOSTIC_WINDOWS.txt') -Destination $diagnosticsPath
           $deliveryPath = Join-Path $env:GITHUB_WORKSPACE 'Livraison'
           New-Item -ItemType Directory -Force $deliveryPath | Out-Null
-          Compress-Archive -Path "$stagePath/*" -DestinationPath "$deliveryPath/Modular_V1_4_Alpha_2_Windows.zip"
+          Compress-Archive -Path "$stagePath/*" -DestinationPath "$deliveryPath/Modular_V1_4_Alpha_3_Windows.zip"
       - name: Apercu pour verification visuelle
         shell: pwsh
         run: |
@@ -48,7 +48,7 @@ jobs:
       - name: Telecharger le VST3
         uses: actions/upload-artifact@v4
         with:
-          name: Modular-V1-4-Alpha-2-Windows
+          name: Modular-V1-4-Alpha-3-Windows
           path: Livraison/*.zip
           if-no-files-found: error
       - name: Rapports de tests
@@ -62,13 +62,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Modular-Audio-Performance-V1-4-Alpha-2
+          name: Modular-Audio-Performance-V1-4-Alpha-3
           path: '**/build-win/performance.csv'
           if-no-files-found: ignore
 
       - name: Apercus interface Modular
         uses: actions/upload-artifact@v4
         with:
-          name: Modular-Interface-V1-4-Alpha-2
+          name: Modular-Interface-V1-4-Alpha-3
           path: '**/build-win/Modular-preview*.png'
           if-no-files-found: error
