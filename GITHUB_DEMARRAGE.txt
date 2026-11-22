@@ -1,6 +1,6 @@
 MODULAR — COMPILATION WINDOWS
 
 Ouvrir Actions > VST3 Windows > Run workflow, ou pousser les sources.
-Quand la compilation reussit, telecharger Modular-V1-4-Alpha-1-Windows
+Quand la compilation reussit, telecharger Modular-V1-4-Alpha-2-Windows
 puis extraire l'archive. Elle contient Modular.vst3 et Standalone/Modular.exe.
 Les mesures, rapports de tests et captures d'interface sont des artifacts separes.

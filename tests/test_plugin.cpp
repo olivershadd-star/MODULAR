@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+#include "WindowLayout.h"
 #include <iostream>
 #include <stdexcept>
 #include <cstdlib>
@@ -12,6 +13,19 @@ public: juce::Optional<PositionInfo>position;juce::Optional<PositionInfo>getPosi
  void set(double ppq,bool playing){PositionInfo p;p.setBpm(120);p.setPpqPosition(ppq);p.setIsPlaying(playing);position=p;}
 };
 juce::Component*findControl(juce::Component&root,const juce::String&id){for(int i=0;i<root.getNumChildComponents();++i){auto*c=root.getChildComponent(i);if(c->getComponentID()==id&&dynamic_cast<juce::Slider*>(c))return c;if(auto*match=findControl(*c,id))return match;}return nullptr;}
+juce::Component*findAny(juce::Component&root,const juce::String&id){if(root.getComponentID()==id)return &root;for(int i=0;i<root.getNumChildComponents();++i)if(auto*c=findAny(*root.getChildComponent(i),id))return c;return nullptr;}
+void checkWindowLayout(ModularProcessor&p){
+ for(auto area:{juce::Rectangle<int>{0,0,1366,728},juce::Rectangle<int>{0,0,1920,1040},juce::Rectangle<int>{-1280,100,1280,680},juce::Rectangle<int>{1920,0,1024,560},juce::Rectangle<int>{0,0,640,400}}){auto size=modular_ui::initialEditorSize(area);check(size.x<area.getWidth()&&size.y+32<area.getHeight(),"initial window does not fit work area");auto fitted=modular_ui::fittedWindow({area.getX()-100,area.getY()-100,1800,1200},area);check(area.contains(fitted),"window clipping on laptop/secondary screen");}
+ std::unique_ptr<juce::AudioProcessorEditor>editor(p.createEditor());editor->setVisible(true);
+ for(auto size:{juce::Point<int>{480,360},juce::Point<int>{760,480},juce::Point<int>{960,600},juce::Point<int>{1366,650},juce::Point<int>{1920,980}}){
+  editor->setSize(size.x,size.y);auto*keys=findAny(*editor,"piano_keyboard");auto*view=dynamic_cast<juce::Viewport*>(findAny(*editor,"workspace_scroll"));check(keys&&view,"keyboard or workspace missing");auto keyBounds=editor->getLocalArea(keys,keys->getLocalBounds());check(editor->getLocalBounds().contains(keyBounds)&&keyBounds.getHeight()>=30,"keyboard clipped by window");check(editor->getLocalBounds().contains(editor->getLocalArea(view,view->getLocalBounds())),"workspace outside editor");
+  auto*content=view->getViewedComponent();for(int i=0;i<6;++i){auto*slot=findAny(*content,"module_slot_"+juce::String(i));check(slot&&content->getLocalBounds().contains(slot->getBounds()),"module outside scrollable workspace");}
+  view->setViewPosition(0,content->getHeight());auto*seq=findAny(*content,"sequence_panel");check(seq&&view->getViewArea().contains(seq->getBounds()),"sequencer unreachable at end of workspace");check(editor->getLocalArea(keys,keys->getLocalBounds())==keyBounds,"workspace scroll moved keyboard");view->setViewPosition(0,0);
+ }
+ class Frame final:public juce::DocumentWindow{public:Frame():DocumentWindow("Modular",juce::Colour(0xff111114),0,false){}void closeButtonPressed()override{}};
+ juce::Component screen;screen.setSize(1366,728);screen.setVisible(true);Frame frame;screen.addAndMakeVisible(frame);modular_ui::enableWindowControls(frame);check(frame.getCloseButton()&&frame.getMinimiseButton()&&frame.getMaximiseButton(),"window control missing");
+ frame.setContentNonOwned(editor.get(),false);frame.setBounds(50,40,960,640);frame.maximiseButtonPressed();check(frame.isFullScreen()&&screen.getLocalBounds().contains(frame.getBounds()),"maximise escapes work area");auto*keys=findAny(*editor,"piano_keyboard");check(editor->getLocalBounds().contains(editor->getLocalArea(keys,keys->getLocalBounds())),"maximise clipped keyboard");frame.maximiseButtonPressed();check(!frame.isFullScreen(),"restore did not exit maximised mode");frame.clearContentComponent();
+}
 int runTests(){
  juce::ScopedJuceInitialiser_GUI init;
  auto p=std::make_unique<ModularProcessor>();set(*p,"rack_on",0);p->prepareToPlay(48000,512);
@@ -73,10 +87,11 @@ int runTests(){
  recipe=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("anks-fm-chain",".ankschain");check(q->saveRecipe(recipe,false),"FM chain fixture");set(*p,"fm_index",7);const float fmIndexBefore=get(*p,"fm_index");check(std::abs(fmIndexBefore-7)<.001f,"FM index fixture");check(p->loadRecipe(recipe,false)&&get(*p,"fm_on")==1&&get(*p,"fm_index")==fmIndexBefore,"chain overwrote FM source");recipe.deleteFile();
  {auto xml=juce::AudioProcessor::getXmlFromBinary(rackState.getData(),int(rackState.getSize()));auto tree=juce::ValueTree::fromXml(*xml);for(int i=tree.getNumChildren()-1;i>=0;--i)if(tree.getChild(i).getProperty("id").toString().startsWith("fm_"))tree.removeChild(i,nullptr);auto old=tree.createXml();juce::MemoryBlock state13;juce::AudioProcessor::copyXmlToBinary(*old,state13);p->setStateInformation(state13.getData(),int(state13.getSize()));check(get(*p,"fm_on")==0&&get(*p,"fm_ratio")==2,"pre-FM state defaults");}
  check(q->loadFactory(0).isEmpty()&&get(*q,"fm_on")==0&&get(*q,"sample")==1,"factory load did not select single WAV source");
+ checkWindowLayout(*q);
  // Representative compact default editor, no long scrolling rack.
  q->loadFactory(4);for(int i=1;i<=4;++i)set(*q,("m"+juce::String(i)+"_on").toRawUTF8(),1);set(*q,"m1_type",1);set(*q,"m2_type",4);set(*q,"m3_type",5);set(*q,"m4_type",6);set(*q,"rack_on",1);
  if(const char*preview=std::getenv("ANKS_UI_PREVIEW")){set(*q,"m5_type",12);set(*q,"m6_type",13);
-  std::unique_ptr<juce::AudioProcessorEditor>editor(q->createEditor());editor->setSize(std::getenv("ANKS_UI_MINIMUM")?1000:1180,std::getenv("ANKS_UI_MINIMUM")?760:850);if(std::getenv("ANKS_UI_SEQUENCE"))for(int i=0;i<editor->getNumChildComponents();++i)if(auto*view=dynamic_cast<juce::Viewport*>(editor->getChildComponent(i)))view->setViewPosition(0,999999);
+  std::unique_ptr<juce::AudioProcessorEditor>editor(q->createEditor());editor->setSize(std::getenv("ANKS_UI_MINIMUM")?760:960,std::getenv("ANKS_UI_MINIMUM")?480:600);if(std::getenv("ANKS_UI_SEQUENCE"))for(int i=0;i<editor->getNumChildComponents();++i)if(auto*view=dynamic_cast<juce::Viewport*>(editor->getChildComponent(i)))view->setViewPosition(0,999999);
   editor->setVisible(true);
   juce::Image image(juce::Image::ARGB,editor->getWidth(),editor->getHeight(),true,juce::SoftwareImageType{});{juce::Graphics g(image);editor->paintEntireComponent(g,true);}
   check(image.getPixelAt(0,0)==juce::Colour(0xff111114),"software preview did not paint editor background");
