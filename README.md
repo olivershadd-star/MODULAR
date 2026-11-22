@@ -1,4 +1,31 @@
-# ANKS Resonant Lab 1.3 alpha 4
+<div align="center">
+
+# ANKS LABS / MODULAR
+### HYBRID SYNTHESIS · RESONANCE · DSP LAB
+
+![Status](https://img.shields.io/badge/STATUS-ALPHA_1.3.4-EF343E?style=for-the-badge&labelColor=10151E)
+![Audio](https://img.shields.io/badge/AUDIO-DEVELOPMENT-19B9FF?style=for-the-badge&labelColor=10151E)
+
+**BUILD. BREAK. REWIRE. LISTEN.**
+
+[![ANKS LABS](https://img.shields.io/badge/ANKS_LABS-GITHUB_PROFILE-19B9FF?style=for-the-badge&labelColor=10151E)](https://github.com/olivershadd-star)
+
+</div>
+
+---
+
+## 01 // LE PROJET
+
+**MODULAR / ANKS Resonant Lab** est un laboratoire original de synthèse hybride (C++ / JUCE, VST3 et standalone Windows). Il explore les excitations WAV et internes, les corps résonants, la FM à deux opérateurs et des traitements réordonnables — semi-modulaire, fréquence shiftée, freeze spectral et transformations de matière.
+
+> **Statut : alpha expérimentale, pas de version stable.** Le moteur et ses modules évoluent encore ; consulter les notes de performance et de test ci-dessous avant toute utilisation exigeante.
+
+**[Sources & documentation](https://github.com/olivershadd-star/MODULAR)** · **[Builds de test / GitHub Actions](https://github.com/olivershadd-star/MODULAR/actions)**
+
+---
+
+## Documentation technique existante — ANKS Resonant Lab 1.3 alpha 4
+
 
 Instrument C++ / JUCE 8.0.6 — VST3 et application autonome Windows x64. Auteur : ANKS.
 
