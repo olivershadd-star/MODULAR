@@ -7,9 +7,25 @@
 
 **BUILD. BREAK. REWIRE. LISTEN.**
 
-[Sources](https://github.com/olivershadd-star/MODULAR) · [Versions Windows et rapports](https://github.com/olivershadd-star/MODULAR/actions)
+[Sources](https://github.com/olivershadd-star/MODULAR) · [Toutes les versions](https://github.com/olivershadd-star/MODULAR/releases) · [Rapports de compilation](https://github.com/olivershadd-star/MODULAR/actions)
 
 </div>
+
+## ⬇ TÉLÉCHARGER ET INSTALLER — DOWNLOAD
+
+[![TÉLÉCHARGER LA DERNIÈRE VERSION](https://img.shields.io/github/v/release/olivershadd-star/MODULAR?include_prereleases&sort=date&display_name=tag&style=for-the-badge&logo=github&logoColor=F7FAFF&label=T%C3%89L%C3%89CHARGER&labelColor=10151E&color=EF343E)](../../releases/latest) [![TOUTES LES VERSIONS](https://img.shields.io/badge/TOUTES_LES-VERSIONS-F5C343?style=for-the-badge&labelColor=10151E)](../../releases)
+
+1. Clique sur **TÉLÉCHARGER**, puis, dans la rubrique *Assets*, télécharge `MODULAR-Windows-x64-X.Y.Z.zip` (X.Y.Z = numéro de version : prends toujours le plus grand).
+2. Clic droit sur le ZIP → **Extraire tout**.
+3. **Plugin pour Ableton** : copie le dossier `Modular.vst3` dans `C:\Program Files\Common Files\VST3`.
+4. Dans Live : **Préférences → Plug-ins → Dossier système VST3 = On**, puis **Relancer l'analyse**.
+5. **Sans Ableton** : lance `Standalone\Modular.exe`. Aucune installation. Détails dans `INSTALLATION.txt` (aussi dans le ZIP).
+
+*Windows peut afficher « Windows a protégé votre ordinateur » : clique sur **Informations complémentaires → Exécuter quand même** (programme gratuit non signé, c'est normal).*
+
+**EN —** Click **DOWNLOAD**, get `MODULAR-Windows-x64-X.Y.Z.zip` from *Assets*, extract it and copy `Modular.vst3` to `C:\Program Files\Common Files\VST3`, or run `Standalone\Modular.exe`.
+
+---
 
 Modular est un instrument C++17 / JUCE 8.0.6, VST3 et application autonome Windows x64. Une source unique alimente une chaîne de six traitements : WAV personnel, banque de 36 excitations, onde interne ou FM à deux opérateurs. Les modules traitent le signal reçu et n’ajoutent pas automatiquement une seconde source.
 
